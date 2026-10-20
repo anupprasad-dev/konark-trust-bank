@@ -1,13 +1,24 @@
 # Konark Trust Bank
-
+**Live demo:** https://konark-trust-bank.netlify.app
+(Hosted on free tier: first load may take up to a minute.)
 A full-stack internet-banking web application built as a portfolio project.
+
 
 > **Disclaimer:** Konark Trust Bank is a fictional bank created for learning and demonstration.
 > It is not affiliated with any real bank. Do not enter real personal or financial data.
 
 **Stack:** React · Tailwind CSS · Django · Django REST Framework · PostgreSQL · JWT
 
----
+## 🔑 Live Credentials
+
+Try the live application using the demo accounts below.
+
+| Role |         Username    | Password |
+|------|----------------------------|------------------|
+| Employee | `sunitamohanty` | `Mohanty@09` |
+| Customer | `2306anup` | `Sonu@12345` |
+
+**Note:** These are public demo credentials for portfolio demonstration only. Do not use real personal or financial information. Access and account availability may change.
 
 ## Features
 

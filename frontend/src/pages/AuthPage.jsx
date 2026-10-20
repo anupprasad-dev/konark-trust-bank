@@ -8,7 +8,8 @@ const FEATURES = [
   "Instant fund transfers to any Konark account",
   "Save beneficiaries for one-tap payments",
   "Search and filter your full transaction history",
-  "Secure JWT login with role-based access",
+  // "Secure JWT login with role-based access",
+  " Real-time transaction alerts sent straight to your phone"
 ];
 
 function LoginForm({ onNotice, notice }) {
