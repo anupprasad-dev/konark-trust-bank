@@ -228,4 +228,7 @@ GitHub Actions CI running the tests, a multi-threaded test for concurrent transf
 
 ## Author
 
-Built by *Your Name* as a full-stack Python portfolio project. (Add your name, GitHub and LinkedIn here.)
+Built by **Anup Prasad** as a full-stack Python Developer.
+
+- GitHub: https://github.com/anupprasad-dev
+- LinkedIn: https://www.linkedin.com/in/anupprasad-dev
