@@ -53,6 +53,31 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ["id", "username", "full_name", "email", "phone", "role", "is_active"]
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8, max_length=128)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_old_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Your current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "The new passwords do not match."})
+        if attrs["new_password"] == attrs["old_password"]:
+            raise serializers.ValidationError(
+                {"new_password": "The new password must be different from the current one."}
+            )
+        try:
+            validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
+        return attrs
+
+
 class LoginSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -181,6 +206,10 @@ class RejectSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=255)
 
 
+class DeleteAccountSerializer(serializers.Serializer):
+    confirm_username = serializers.CharField(max_length=150)
+
+
 # ------------------------------------------------------------------ accounts
 class AccountSerializer(serializers.ModelSerializer):
     holder_name = serializers.CharField(source="user.display_name", read_only=True)
@@ -215,18 +244,17 @@ class TransactionSerializer(serializers.ModelSerializer):
         return obj.from_account_id == self.context["account"].id
 
     def _other(self, obj):
-        return obj.to_account if self._is_debit(obj) else obj.from_account
+        """(name, account number) of the other side of this transaction."""
+        return obj.to_party() if self._is_debit(obj) else obj.from_party()
 
     def get_direction(self, obj):
         return "DEBIT" if self._is_debit(obj) else "CREDIT"
 
     def get_counterparty_name(self, obj):
-        other = self._other(obj)
-        return other.user.display_name if other else "Konark Trust Bank (cash deposit)"
+        return self._other(obj)[0]
 
     def get_counterparty_account(self, obj):
-        other = self._other(obj)
-        return other.account_number if other else ""
+        return self._other(obj)[1]
 
 
 class AdminTransactionSerializer(serializers.ModelSerializer):
@@ -243,16 +271,16 @@ class AdminTransactionSerializer(serializers.ModelSerializer):
         ]
 
     def get_from_account_number(self, obj):
-        return obj.from_account.account_number if obj.from_account else ""
+        return obj.from_party()[1]
 
     def get_to_account_number(self, obj):
-        return obj.to_account.account_number if obj.to_account else ""
+        return obj.to_party()[1]
 
     def get_from_name(self, obj):
-        return obj.from_account.user.display_name if obj.from_account else "Bank"
+        return obj.from_party()[0]
 
     def get_to_name(self, obj):
-        return obj.to_account.user.display_name if obj.to_account else "-"
+        return obj.to_party()[0]
 
 
 class TransferSerializer(serializers.Serializer):

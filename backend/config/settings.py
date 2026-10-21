@@ -138,6 +138,7 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:5173,http://127.0.0.1:5173",
     cast=Csv(),
 )
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]  # lets the frontend read the PDF file name
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 
 # ---------------------------------------------------------------- Production

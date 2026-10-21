@@ -92,18 +92,32 @@ def _new_txn_ref():
 
 
 class Transaction(models.Model):
+    """One ledger entry.
+
+    When an account is permanently deleted, the ledger rows are KEPT: the account
+    links become NULL (SET_NULL) and the *_name / *_account_number "snapshot"
+    fields (filled in just before deletion) still say who was involved.
+    """
+
     class Type(models.TextChoices):
         TRANSFER = "transfer", "Transfer"
         DEPOSIT = "deposit", "Deposit"
+        WITHDRAWAL = "withdrawal", "Withdrawal"
 
     txn_ref = models.CharField(max_length=20, unique=True, default=_new_txn_ref, editable=False)
-    txn_type = models.CharField(max_length=10, choices=Type.choices)
+    txn_type = models.CharField(max_length=12, choices=Type.choices)
     from_account = models.ForeignKey(
-        Account, null=True, blank=True, on_delete=models.PROTECT, related_name="debits"
+        Account, null=True, blank=True, on_delete=models.SET_NULL, related_name="debits"
     )
     to_account = models.ForeignKey(
-        Account, null=True, blank=True, on_delete=models.PROTECT, related_name="credits"
+        Account, null=True, blank=True, on_delete=models.SET_NULL, related_name="credits"
     )
+    # Snapshots, used only after an account has been deleted.
+    from_name = models.CharField(max_length=120, blank=True)
+    from_account_number = models.CharField(max_length=16, blank=True)
+    to_name = models.CharField(max_length=120, blank=True)
+    to_account_number = models.CharField(max_length=16, blank=True)
+
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     remark = models.CharField(max_length=140, blank=True)
     performed_by = models.ForeignKey(
@@ -119,6 +133,26 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.txn_ref} {self.amount}"
+
+    def from_party(self):
+        """(name, account number) of the sending side."""
+        if self.from_account_id:
+            return self.from_account.user.display_name, self.from_account.account_number
+        if self.from_name:
+            return f"{self.from_name} (closed account)", self.from_account_number
+        if self.txn_type == self.Type.DEPOSIT:
+            return "Konark Trust Bank (cash deposit)", ""
+        return "Closed account", self.from_account_number
+
+    def to_party(self):
+        """(name, account number) of the receiving side."""
+        if self.to_account_id:
+            return self.to_account.user.display_name, self.to_account.account_number
+        if self.to_name:
+            return f"{self.to_name} (closed account)", self.to_account_number
+        if self.txn_type == self.Type.WITHDRAWAL:
+            return "Konark Trust Bank (cash withdrawal)", ""
+        return "Closed account", self.to_account_number
 
 
 class Beneficiary(models.Model):

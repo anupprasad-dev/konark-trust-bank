@@ -89,14 +89,16 @@ export default function Requests() {
                     )}
                   </Td>
                   <Td className="whitespace-nowrap text-right">
-                    {r.status === "pending" && (
+                    {r.status !== "approved" && (
                       <div className="flex justify-end gap-2">
                         <button className="btn-primary px-3 py-1.5" onClick={() => setDialog({ type: "approve", request: r })}>
-                          Approve
+                          {r.status === "rejected" ? "Approve again" : "Approve"}
                         </button>
-                        <button className="btn-outline px-3 py-1.5" onClick={() => setDialog({ type: "reject", request: r })}>
-                          Reject
-                        </button>
+                        {r.status === "pending" && (
+                          <button className="btn-outline px-3 py-1.5" onClick={() => setDialog({ type: "reject", request: r })}>
+                            Reject
+                          </button>
+                        )}
                       </div>
                     )}
                   </Td>
@@ -156,6 +158,12 @@ function ReviewDialog({ dialog, onClose, onDone }) {
         <p className="text-sm text-slate-600">
           {request.full_name} (@{request.username})
         </p>
+        {type === "approve" && request.status === "rejected" && (
+          <Alert type="info">
+            This request was rejected earlier{request.rejection_reason ? ` (${request.rejection_reason})` : ""}.
+            Approving it now will create the customer login and account.
+          </Alert>
+        )}
         <Alert>{error}</Alert>
         {type === "approve" ? (
           <Input

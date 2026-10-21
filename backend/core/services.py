@@ -96,8 +96,9 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
     except RegistrationRequest.DoesNotExist:
         raise BankError("Request not found.")
 
-    if reg.status != RegistrationRequest.Status.PENDING:
-        raise BankError(f"This request is already {reg.status}.")
+    # A pending request can be approved, and so can a rejected one (second chance).
+    if reg.status == RegistrationRequest.Status.APPROVED:
+        raise BankError("This request is already approved.")
     if User.objects.filter(username__iexact=reg.username).exists():
         raise BankError("This username is already taken. Please reject the request.")
     if User.objects.filter(email__iexact=reg.email).exists():
@@ -126,11 +127,62 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
         )
 
     reg.status = RegistrationRequest.Status.APPROVED
+    reg.rejection_reason = ""
     reg.reviewed_by = employee
     reg.reviewed_at = timezone.now()
     reg.user = user
     reg.save()
     return reg
+
+
+@transaction.atomic
+def delete_customer_account(*, employee, account_id, confirm_username):
+    """Permanently delete a customer: login, account and beneficiaries.
+
+    - Any remaining balance is first recorded as a cash payout (WITHDRAWAL), so the
+      bank's ledger still adds up.
+    - Transaction rows are kept (other customers' histories must not change). Their
+      account links become NULL and the name/number snapshots are filled in here.
+    """
+    try:
+        account = (
+            Account.objects.select_for_update().select_related("user").get(pk=account_id)
+        )
+    except Account.DoesNotExist:
+        raise BankError("Account not found.")
+
+    user = account.user
+    if user.role != Role.CUSTOMER:
+        raise BankError("Only customer accounts can be deleted here.")
+    if confirm_username.strip().lower() != user.username.lower():
+        raise BankError("The username you typed does not match. Nothing was deleted.")
+
+    name = user.display_name
+    number = account.account_number
+
+    Transaction.objects.filter(from_account=account).update(
+        from_name=name, from_account_number=number
+    )
+    Transaction.objects.filter(to_account=account).update(
+        to_name=name, to_account_number=number
+    )
+
+    paid_out = account.balance
+    if paid_out > 0:
+        account.balance = Decimal("0")
+        account.save(update_fields=["balance"])
+        Transaction.objects.create(
+            txn_type=Transaction.Type.WITHDRAWAL,
+            from_account=account,
+            from_name=name,
+            from_account_number=number,
+            amount=paid_out,
+            remark="Account closed - balance paid out in cash",
+            performed_by=employee,
+        )
+
+    user.delete()  # cascades to the Account and the user's beneficiaries
+    return {"username": user.username, "account_number": number, "paid_out": paid_out}
 
 
 @transaction.atomic

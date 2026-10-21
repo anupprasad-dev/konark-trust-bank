@@ -9,7 +9,8 @@ export default function Accounts() {
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [target, setTarget] = useState(null);
+  const [target, setTarget] = useState(null); // account for the deposit dialog
+  const [toDelete, setToDelete] = useState(null); // account for the delete dialog
   const [notice, setNotice] = useState("");
 
   const { data, loading, error, reload } = useApi("/employee/accounts/", {
@@ -52,9 +53,14 @@ export default function Accounts() {
                   <Td className="whitespace-nowrap">{formatDate(a.created_at)}</Td>
                   <Td><Badge kind={a.is_active ? "active" : "blocked"}>{a.is_active ? "Active" : "Blocked"}</Badge></Td>
                   <Td className="text-right">
-                    <button className="btn-outline px-3 py-1.5" disabled={!a.is_active} onClick={() => setTarget(a)}>
-                      Deposit
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button className="btn-outline px-3 py-1.5" disabled={!a.is_active} onClick={() => setTarget(a)}>
+                        Deposit
+                      </button>
+                      <button className="btn-danger px-3 py-1.5" onClick={() => setToDelete(a)}>
+                        Delete
+                      </button>
+                    </div>
                   </Td>
                 </tr>
               ))}
@@ -77,7 +83,68 @@ export default function Accounts() {
           }}
         />
       )}
+      {toDelete && (
+        <DeleteDialog
+          account={toDelete}
+          onClose={() => setToDelete(null)}
+          onDone={(message) => {
+            setToDelete(null);
+            setNotice(message);
+            setPage(1);
+            reload();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function DeleteDialog({ account, onClose, onDone }) {
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const matches = confirm.trim().toLowerCase() === account.username.toLowerCase();
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/employee/accounts/${account.id}/delete/`, { confirm_username: confirm });
+      const payout = Number(data.paid_out) > 0 ? ` Balance paid out in cash: ${formatINR(data.paid_out)}.` : "";
+      onDone(`${data.detail}${payout}`);
+    } catch (err) {
+      setError(fieldErrors(err).confirm_username || errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Permanently delete account" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <Alert>
+          This cannot be undone. The customer login, account and saved beneficiaries are removed.
+          {Number(account.balance) > 0 && ` The balance of ${formatINR(account.balance)} is recorded as a cash payout.`}
+          {" "}Past transactions stay in the bank ledger.
+        </Alert>
+        <p className="text-sm text-slate-600">
+          {account.holder_name} &middot; <span className="font-mono">{account.account_number}</span>
+        </p>
+        <Input
+          label={`Type the username "${account.username}" to confirm`}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="off"
+        />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn-danger" disabled={busy || !matches}>
+            {busy ? "Deleting..." : "Delete permanently"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

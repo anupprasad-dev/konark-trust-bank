@@ -1,6 +1,7 @@
 from datetime import datetime, time
 
 from django.db.models import Count, Q, Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status
@@ -11,12 +12,13 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
+from .statement import StatementTooLarge, build_statement_pdf
 from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApproveSerializer,
-    BeneficiarySerializer, CustomerListSerializer, DepositSerializer,
-    EmployeeCreateSerializer, LoginSerializer, RegisterSerializer,
+    BeneficiarySerializer, ChangePasswordSerializer, CustomerListSerializer,
+    DeleteAccountSerializer, DepositSerializer, EmployeeCreateSerializer, LoginSerializer, RegisterSerializer,
     RegistrationRequestSerializer, RejectSerializer, TransactionSerializer,
     TransferSerializer, UserSerializer,
 )
@@ -62,7 +64,25 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        data = UserSerializer(request.user).data
+        account = Account.objects.filter(user=request.user).first()
+        data["account_number"] = account.account_number if account else None
+        return Response(data)
+
+
+class ChangePasswordView(APIView):
+    """Any logged-in user (customer, employee or admin) can change their own password."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+        return Response({"detail": "Your password was changed successfully."})
 
 
 # ====================================================================== customer
@@ -110,6 +130,8 @@ class MyTransactionsView(generics.ListAPIView):
                 | Q(to_account__account_number__icontains=q)
                 | Q(from_account__user__full_name__icontains=q)
                 | Q(to_account__user__full_name__icontains=q)
+                | Q(from_name__icontains=q)
+                | Q(to_name__icontains=q)
             )
 
         tz = timezone.get_current_timezone()
@@ -125,6 +147,39 @@ class MyTransactionsView(generics.ListAPIView):
                     continue  # ignore a badly formatted date
                 qs = qs.filter(**{lookup: timezone.make_aware(datetime.combine(day, boundary), tz)})
         return qs
+
+
+def _parse_day(raw):
+    """'2026-10-21' -> date, '' / None -> None. Raises ValueError if badly formatted."""
+    if not raw:
+        return None
+    return datetime.strptime(raw, "%Y-%m-%d").date()
+
+
+class StatementView(APIView):
+    """Download the account statement as a PDF.  ?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD (both optional)"""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        try:
+            date_from = _parse_day(request.query_params.get("date_from"))
+            date_to = _parse_day(request.query_params.get("date_to"))
+        except ValueError:
+            return _bad("Dates must be in YYYY-MM-DD format.")
+        if date_from and date_to and date_from > date_to:
+            return _bad("'From' date cannot be after 'To' date.")
+
+        account = get_object_or_404(Account.objects.select_related("user"), user=request.user)
+        try:
+            pdf = build_statement_pdf(account, date_from, date_to)
+        except StatementTooLarge:
+            return _bad("Too many transactions in this period. Please choose a shorter date range.")
+
+        filename = f"statement_{account.account_number}_{timezone.localdate():%Y%m%d}.pdf"
+        response = HttpResponse(pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
 
 class TransferView(APIView):
@@ -237,6 +292,28 @@ class EmployeeAccountListView(generics.ListAPIView):
         return qs
 
 
+class DeleteAccountView(APIView):
+    """Permanently delete a customer (login + account). Needs the username typed as confirmation."""
+
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = services.delete_customer_account(
+                employee=request.user,
+                account_id=pk,
+                confirm_username=serializer.validated_data["confirm_username"],
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response({
+            "detail": f"Account {result['account_number']} ({result['username']}) was permanently deleted.",
+            "paid_out": str(result["paid_out"]),
+        })
+
+
 class DepositView(APIView):
     permission_classes = [IsEmployee]
 
@@ -322,5 +399,9 @@ class AdminTransactionListView(generics.ListAPIView):
                 Q(txn_ref__icontains=q) | Q(remark__icontains=q)
                 | Q(from_account__account_number__icontains=q)
                 | Q(to_account__account_number__icontains=q)
+                | Q(from_account_number__icontains=q)
+                | Q(to_account_number__icontains=q)
+                | Q(from_name__icontains=q)
+                | Q(to_name__icontains=q)
             )
         return qs

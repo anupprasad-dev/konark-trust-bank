@@ -37,6 +37,7 @@ const BADGES = {
   debit: "bg-red-100 text-red-700",
   deposit: "bg-sky-100 text-sky-800",
   transfer: "bg-slate-100 text-slate-700",
+  withdrawal: "bg-amber-100 text-amber-800",
 };
 
 export function Badge({ kind, children }) {

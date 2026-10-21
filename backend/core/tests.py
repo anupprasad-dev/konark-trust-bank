@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
@@ -252,3 +253,234 @@ class RolePermissionTests(BankTestBase):
     def test_createsuperuser_gets_admin_role(self):
         user = User.objects.create_superuser("root", "root@example.com", PASSWORD)
         self.assertEqual(user.role, Role.ADMIN)
+
+
+class ProfileAndPasswordTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.user = make_user("pwuser", Role.CUSTOMER, "Pw User", True, "10")
+
+    def change(self, old=PASSWORD, new="N3w#Secret77", confirm=None):
+        return self.client.post(
+            "/api/auth/change-password/",
+            {"old_password": old, "new_password": new, "confirm_password": confirm or new},
+            format="json",
+        )
+
+    def test_me_includes_account_number(self):
+        self.login("pwuser")
+        me = self.client.get("/api/auth/me/").data
+        self.assertEqual(me["account_number"], self.user.account.account_number)
+
+    def test_change_password_works(self):
+        self.login("pwuser")
+        self.assertEqual(self.change().status_code, 200)
+        self.logout()
+        bad = self.client.post(
+            "/api/auth/login/", {"username": "pwuser", "password": PASSWORD}, format="json"
+        )
+        self.assertEqual(bad.status_code, 401)
+        self.login("pwuser", "N3w#Secret77")
+
+    def test_change_password_rejects_bad_input(self):
+        self.login("pwuser")
+        self.assertEqual(self.change(old="wrong-old").status_code, 400)
+        self.assertEqual(self.change(confirm="Different#123x").status_code, 400)
+        self.assertEqual(self.change(new=PASSWORD).status_code, 400)  # same as current
+        self.assertEqual(self.change(new="12345678").status_code, 400)  # weak
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(PASSWORD))  # nothing changed
+
+    def test_every_role_can_change_password(self):
+        make_user("emp_pw", Role.EMPLOYEE)
+        self.login("emp_pw")
+        self.assertEqual(self.change().status_code, 200)
+
+    def test_change_password_needs_login(self):
+        self.assertEqual(self.change().status_code, 401)
+
+
+class RegisterAgainTests(BankTestBase):
+    def test_rejected_request_can_be_approved_later(self):
+        make_user("emp1", Role.EMPLOYEE)
+        RegistrationRequest.objects.create(
+            full_name="Late Joiner", username="late_joiner", email="late@example.com",
+            phone="9123456780", password_hash=make_password(PASSWORD),
+        )
+        reg = RegistrationRequest.objects.get()
+        self.login("emp1")
+        self.client.post(f"/api/employee/requests/{reg.id}/reject/", {"reason": "Blurry ID"}, format="json")
+        reg.refresh_from_db()
+        self.assertEqual(reg.status, "rejected")
+
+        response = self.client.post(
+            f"/api/employee/requests/{reg.id}/approve/", {"opening_balance": "250"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["status"], "approved")
+        self.assertEqual(response.data["rejection_reason"], "")
+        self.assertTrue(User.objects.filter(username="late_joiner").exists())
+        self.assertEqual(Account.objects.get(user__username="late_joiner").balance, Decimal("250"))
+
+        # an approved request cannot be approved (or rejected) again
+        self.assertEqual(self.client.post(f"/api/employee/requests/{reg.id}/approve/", {}, format="json").status_code, 400)
+        self.assertEqual(self.client.post(f"/api/employee/requests/{reg.id}/reject/", {"reason": "x"}, format="json").status_code, 400)
+
+
+class DeleteAccountTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "1000")
+        self.bob = make_user("bob", Role.CUSTOMER, "Bob", True, "500")
+
+    def send_money(self, sender, receiver, amount):
+        self.logout()
+        self.login(sender)
+        response = self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": receiver.account.account_number, "amount": amount,
+             "remark": "hello & <thanks>", "password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def delete(self, account, confirm):
+        self.logout()
+        self.login("emp1")
+        return self.client.post(
+            f"/api/employee/accounts/{account.id}/delete/", {"confirm_username": confirm}, format="json"
+        )
+
+    def test_delete_keeps_ledger_and_pays_out_balance(self):
+        self.send_money("alice", self.bob, "300")   # alice 700, bob 800
+        self.send_money("bob", self.alice, "50")    # alice 750, bob 750
+        alice_id, alice_number = self.alice.account.id, self.alice.account.account_number
+
+        response = self.delete(self.alice.account, "alice")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(Decimal(response.data["paid_out"]), Decimal("750"))
+
+        self.assertFalse(User.objects.filter(username="alice").exists())
+        self.assertFalse(Account.objects.filter(id=alice_id).exists())
+
+        # her transactions are still in the ledger, with the snapshot names
+        self.assertEqual(Transaction.objects.filter(txn_type="withdrawal").count(), 1)
+        payout = Transaction.objects.get(txn_type="withdrawal")
+        self.assertEqual(payout.amount, Decimal("750"))
+        self.assertEqual(payout.from_name, "Alice")
+        self.assertIsNone(payout.from_account)
+
+        # bob's history still shows alice's name, marked as closed
+        self.logout()
+        self.login("bob")
+        results = self.client.get("/api/customer/transactions/").data["results"]
+        names = {r["counterparty_name"] for r in results}
+        self.assertIn("Alice (closed account)", names)
+        self.assertEqual(self.client.get("/api/customer/account/").data["balance"], "750.00")
+
+        # admin ledger still renders
+        self.logout()
+        make_user("boss", Role.ADMIN)
+        self.login("boss")
+        listing = self.client.get("/api/admin-panel/transactions/?q=" + alice_number)
+        self.assertEqual(listing.status_code, 200)
+        self.assertGreaterEqual(listing.data["count"], 3)
+
+        # the deleted customer can no longer log in, and the username is free again
+        self.logout()
+        response = self.client.post(
+            "/api/auth/login/", {"username": "alice", "password": PASSWORD}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_transfer_to_deleted_account_is_refused(self):
+        number = self.alice.account.account_number
+        self.assertEqual(self.delete(self.alice.account, "alice").status_code, 200)
+        self.logout()
+        self.login("bob")
+        response = self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": number, "amount": "10", "password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not found", response.data["detail"])
+
+    def test_wrong_confirmation_deletes_nothing(self):
+        response = self.delete(self.alice.account, "not-alice")
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(User.objects.filter(username="alice").exists())
+
+    def test_only_employees_can_delete(self):
+        self.logout()
+        self.login("bob")
+        url = f"/api/employee/accounts/{self.alice.account.id}/delete/"
+        self.assertEqual(self.client.post(url, {"confirm_username": "alice"}, format="json").status_code, 403)
+        self.logout()
+        self.assertEqual(self.client.post(url, {"confirm_username": "alice"}, format="json").status_code, 401)
+        self.assertTrue(User.objects.filter(username="alice").exists())
+
+    def test_zero_balance_account_has_no_payout_entry(self):
+        empty = make_user("empty_acc", Role.CUSTOMER, "Empty", True, "0")
+        self.assertEqual(self.delete(empty.account, "empty_acc").status_code, 200)
+        self.assertEqual(Transaction.objects.filter(txn_type="withdrawal").count(), 0)
+
+
+class StatementTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice & Co", True, "0")
+        self.bob = make_user("bob", Role.CUSTOMER, "Bob", True, "0")
+        emp = make_user("emp1", Role.EMPLOYEE)
+        from .services import deposit_cash
+        deposit_cash(employee=emp, account_number=self.alice.account.account_number, amount=Decimal("1000"))
+
+    def test_statement_is_a_pdf(self):
+        self.login("alice")
+        self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.bob.account.account_number, "amount": "250.50",
+             "remark": "R&D <test>", "password": PASSWORD},
+            format="json",
+        )
+        response = self.client.get("/api/customer/statement/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_statement_numbers_are_right(self):
+        from .statement import collect_statement
+        self.login("alice")
+        self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.bob.account.account_number, "amount": "250.50", "password": PASSWORD},
+            format="json",
+        )
+        data = collect_statement(self.alice.account)
+        self.assertEqual(data["opening"], Decimal("0"))
+        self.assertEqual(data["total_credit"], Decimal("1000"))
+        self.assertEqual(data["total_debit"], Decimal("250.50"))
+        self.assertEqual(data["closing"], Decimal("749.50"))
+        self.assertEqual(len(data["rows"]), 2)
+
+        from datetime import date, timedelta
+        tomorrow = date.today() + timedelta(days=2)
+        later = collect_statement(self.alice.account, date_from=tomorrow)
+        self.assertEqual(later["rows"], [])
+        self.assertEqual(later["opening"], Decimal("749.50"))
+        self.assertEqual(later["closing"], Decimal("749.50"))
+
+    def test_statement_validation_and_permissions(self):
+        self.login("alice")
+        self.assertEqual(self.client.get("/api/customer/statement/?date_from=banana").status_code, 400)
+        self.assertEqual(
+            self.client.get("/api/customer/statement/?date_from=2026-02-01&date_to=2026-01-01").status_code, 400
+        )
+        self.assertEqual(self.client.get("/api/customer/statement/?date_from=2026-01-01&date_to=2026-12-31").status_code, 200)
+        self.logout()
+        self.login("emp1")
+        self.assertEqual(self.client.get("/api/customer/statement/").status_code, 403)
+        self.logout()
+        self.assertEqual(self.client.get("/api/customer/statement/").status_code, 401)
