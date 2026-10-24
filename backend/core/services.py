@@ -5,7 +5,9 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Account, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, RegistrationRequest, Role, Transaction, User
+
+MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
 
 class BankError(Exception):
@@ -133,6 +135,71 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
     reg.user = user
     reg.save()
     return reg
+
+
+@transaction.atomic
+def cancel_transfer(*, employee, txn_id, reason):
+    """Cancel a customer's transfer made less than 24 hours ago and give the money back.
+
+    The original row is kept and marked CANCELLED (with the employee, time and reason).
+    A new REVERSAL transaction moves the money from the receiver back to the sender.
+    """
+    reason = (reason or "").strip()
+    if len(reason) < MIN_CANCEL_REASON:
+        raise BankError(
+            f"Please explain the reason in full (at least {MIN_CANCEL_REASON} characters)."
+        )
+
+    try:
+        txn = Transaction.objects.select_for_update().get(pk=txn_id)
+    except Transaction.DoesNotExist:
+        raise BankError("Transaction not found.")
+
+    if txn.txn_type != Transaction.Type.TRANSFER:
+        raise BankError("Only customer transfers can be cancelled.")
+    if txn.status == Transaction.Status.CANCELLED:
+        raise BankError("This transaction is already cancelled.")
+    if timezone.now() - txn.created_at >= CANCEL_WINDOW:
+        raise BankError("This transaction is older than 24 hours and can no longer be cancelled.")
+    if txn.from_account_id is None or txn.to_account_id is None:
+        raise BankError("One of the two accounts has been closed, so this cannot be cancelled.")
+
+    locked = {
+        acc.id: acc
+        for acc in Account.objects.select_for_update()
+        .filter(pk__in=[txn.from_account_id, txn.to_account_id])
+        .order_by("id")
+    }
+    sender = locked[txn.from_account_id]
+    receiver = locked[txn.to_account_id]
+
+    if receiver.balance < txn.amount:
+        raise BankError(
+            "Cannot cancel: the receiver has already spent part of this money "
+            f"(their balance is Rs. {receiver.balance}, the transfer was Rs. {txn.amount})."
+        )
+
+    receiver.balance -= txn.amount
+    sender.balance += txn.amount
+    receiver.save(update_fields=["balance"])
+    sender.save(update_fields=["balance"])
+
+    Transaction.objects.create(
+        txn_type=Transaction.Type.REVERSAL,
+        from_account=receiver,
+        to_account=sender,
+        amount=txn.amount,
+        remark=f"Reversal of {txn.txn_ref}",
+        performed_by=employee,
+        reversal_of=txn,
+    )
+
+    txn.status = Transaction.Status.CANCELLED
+    txn.cancelled_at = timezone.now()
+    txn.cancelled_by = employee
+    txn.cancel_reason = reason
+    txn.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancel_reason"])
+    return txn
 
 
 @transaction.atomic

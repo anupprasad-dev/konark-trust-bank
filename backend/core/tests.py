@@ -609,3 +609,223 @@ class EmployeeSeesCustomerHistoryTests(BankTestBase):
     def test_customers_own_history_still_works(self):
         self.login("alice")
         self.assertEqual(self.client.get("/api/customer/transactions/").data["count"], 2)
+
+
+class EmployeeResetPasswordTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "10")
+        self.url = f"/api/employee/accounts/{self.alice.account.id}/reset-password/"
+
+    def reset(self, new="Fresh#Pass2026", confirm=None, mine=PASSWORD):
+        return self.client.post(
+            self.url,
+            {"new_password": new, "confirm_password": confirm or new, "employee_password": mine},
+            format="json",
+        )
+
+    def test_employee_sets_new_password_without_the_old_one(self):
+        self.login("emp1")
+        response = self.reset()
+        self.assertEqual(response.status_code, 200, response.content)
+        self.logout()
+        old = self.client.post("/api/auth/login/", {"username": "alice", "password": PASSWORD}, format="json")
+        self.assertEqual(old.status_code, 401)
+        self.login("alice", "Fresh#Pass2026")
+
+    def test_needs_the_employees_own_password(self):
+        self.login("emp1")
+        self.assertEqual(self.reset(mine="not-my-password").status_code, 400)
+        self.alice.refresh_from_db()
+        self.assertTrue(self.alice.check_password(PASSWORD))  # unchanged
+
+    def test_rejects_weak_or_mismatching_passwords(self):
+        self.login("emp1")
+        self.assertEqual(self.reset(new="12345678").status_code, 400)
+        self.assertEqual(self.reset(new="Fresh#Pass2026", confirm="Other#Pass2026").status_code, 400)
+        self.alice.refresh_from_db()
+        self.assertTrue(self.alice.check_password(PASSWORD))
+
+    def test_only_employees_can_do_it(self):
+        for username in ("alice", "boss"):
+            self.login(username)
+            self.assertEqual(self.reset().status_code, 403)
+            self.logout()
+        self.assertEqual(self.reset().status_code, 401)
+
+    def test_unknown_account_is_404(self):
+        self.login("emp1")
+        response = self.client.post(
+            "/api/employee/accounts/999999/reset-password/",
+            {"new_password": "Fresh#Pass2026", "confirm_password": "Fresh#Pass2026",
+             "employee_password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+class CancelTransferTests(BankTestBase):
+    REASON = "Customer sent the money to the wrong account by mistake and asked us to reverse it."
+
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "1000")
+        self.bob = make_user("bob", Role.CUSTOMER, "Bob", True, "0")
+        self.login("alice")
+        response = self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.bob.account.account_number, "amount": "300",
+             "remark": "oops", "password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.txn = Transaction.objects.get(txn_type="transfer")
+        self.logout()
+
+    def cancel(self, txn=None, reason=None, user="emp1"):
+        self.logout()
+        self.login(user)
+        return self.client.post(
+            f"/api/employee/transactions/{(txn or self.txn).id}/cancel/",
+            {"reason": self.REASON if reason is None else reason},
+            format="json",
+        )
+
+    def balances(self):
+        self.alice.account.refresh_from_db()
+        self.bob.account.refresh_from_db()
+        return self.alice.account.balance, self.bob.account.balance
+
+    def test_cancel_returns_the_money_and_keeps_the_ledger(self):
+        self.assertEqual(self.balances(), (Decimal("700"), Decimal("300")))
+        response = self.cancel()
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(self.balances(), (Decimal("1000"), Decimal("0")))
+
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, "cancelled")
+        self.assertEqual(self.txn.cancel_reason, self.REASON)
+        self.assertEqual(self.txn.cancelled_by.username, "emp1")
+        self.assertIsNotNone(self.txn.cancelled_at)
+
+        reversal = Transaction.objects.get(txn_type="reversal")
+        self.assertEqual(reversal.reversal_of_id, self.txn.id)
+        self.assertEqual(reversal.amount, Decimal("300"))
+        self.assertEqual(reversal.from_account_id, self.bob.account.id)
+        self.assertEqual(reversal.to_account_id, self.alice.account.id)
+        self.assertEqual(Transaction.objects.count(), 2)  # nothing was deleted
+
+    def test_customers_can_see_the_cancellation_and_the_reason(self):
+        self.cancel()
+        self.logout()
+        self.login("alice")
+        results = self.client.get("/api/customer/transactions/").data["results"]
+        by_ref = {r["txn_ref"]: r for r in results}
+        original = by_ref[self.txn.txn_ref]
+        self.assertEqual(original["status"], "cancelled")
+        self.assertEqual(original["cancel_reason"], self.REASON)
+        self.assertEqual(len(results), 2)  # the original and its reversal
+
+    def test_employee_view_says_what_can_be_cancelled(self):
+        self.login("emp1")
+        url = f"/api/employee/accounts/{self.alice.account.id}/transactions/"
+        self.assertTrue(self.client.get(url).data["results"][0]["can_cancel"])
+        self.cancel()
+        self.logout()
+        self.login("emp1")
+        results = self.client.get(url).data["results"]
+        self.assertFalse(any(r["can_cancel"] for r in results))  # cancelled + reversal
+
+    def test_statement_balance_is_still_right_after_a_cancel(self):
+        from .statement import collect_statement
+        self.cancel()
+        data = collect_statement(self.alice.account)
+        # the transfer (-300) and its reversal (+300) cancel each other out
+        self.assertEqual(data["total_debit"], Decimal("300"))
+        self.assertEqual(data["total_credit"], Decimal("300"))
+        self.assertEqual(data["closing"], Decimal("0"))
+        self.assertTrue(any(row["cancelled"] for row in data["rows"]))
+
+    def test_cannot_cancel_twice(self):
+        self.assertEqual(self.cancel().status_code, 200)
+        self.assertEqual(self.cancel().status_code, 400)
+        self.assertEqual(self.balances(), (Decimal("1000"), Decimal("0")))
+
+    def test_reason_must_be_explained_in_full(self):
+        self.assertEqual(self.cancel(reason="").status_code, 400)
+        self.assertEqual(self.cancel(reason="wrong").status_code, 400)
+        self.assertEqual(self.cancel(reason="   too short   ").status_code, 400)
+        self.assertEqual(self.balances(), (Decimal("700"), Decimal("300")))
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, "completed")
+
+    def test_cannot_cancel_after_24_hours(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        Transaction.objects.filter(pk=self.txn.pk).update(created_at=timezone.now() - timedelta(hours=25))
+        response = self.cancel()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("24 hours", response.data["detail"])
+        self.assertEqual(self.balances(), (Decimal("700"), Decimal("300")))
+
+        # a transfer a little under 24 hours old can still be cancelled
+        Transaction.objects.filter(pk=self.txn.pk).update(created_at=timezone.now() - timedelta(hours=23))
+        self.assertEqual(self.cancel().status_code, 200)
+
+    def test_cannot_cancel_if_receiver_already_spent_the_money(self):
+        self.logout()
+        self.login("bob")
+        self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.alice.account.account_number, "amount": "250", "password": PASSWORD},
+            format="json",
+        )
+        # bob now holds only 50, but the transfer to cancel was 300
+        response = self.cancel()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already spent", response.data["detail"])
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, "completed")
+        self.assertEqual(Transaction.objects.filter(txn_type="reversal").count(), 0)
+
+    def test_only_transfers_can_be_cancelled(self):
+        self.assertEqual(self.cancel().status_code, 200)
+        reversal = Transaction.objects.get(txn_type="reversal")
+        self.assertEqual(self.cancel(txn=reversal).status_code, 400)  # a reversal itself
+
+        from .services import deposit_cash
+        deposit = deposit_cash(
+            employee=User.objects.get(username="emp1"),
+            account_number=self.alice.account.account_number, amount=Decimal("5"),
+        )
+        self.assertEqual(self.cancel(txn=deposit).status_code, 400)
+
+    def test_cannot_cancel_if_an_account_was_closed(self):
+        from .services import delete_customer_account
+        delete_customer_account(
+            employee=User.objects.get(username="emp1"),
+            account_id=self.bob.account.id, confirm_username="bob",
+        )
+        response = self.cancel()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("closed", response.data["detail"])
+
+    def test_only_employees_can_cancel(self):
+        for username in ("alice", "bob", "boss"):
+            self.assertEqual(self.cancel(user=username).status_code, 403)
+        self.logout()
+        response = self.client.post(f"/api/employee/transactions/{self.txn.id}/cancel/", {"reason": self.REASON}, format="json")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(self.balances(), (Decimal("700"), Decimal("300")))
+
+    def test_unknown_transaction_is_400(self):
+        self.logout()
+        self.login("emp1")
+        response = self.client.post(
+            "/api/employee/transactions/999999/cancel/", {"reason": self.REASON}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)

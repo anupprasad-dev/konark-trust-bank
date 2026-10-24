@@ -1,7 +1,12 @@
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+from django.utils import timezone
+
+# An employee may cancel a customer's transfer only within this time after it was made.
+CANCEL_WINDOW = timedelta(hours=24)
 
 
 class Role(models.TextChoices):
@@ -103,6 +108,11 @@ class Transaction(models.Model):
         TRANSFER = "transfer", "Transfer"
         DEPOSIT = "deposit", "Deposit"
         WITHDRAWAL = "withdrawal", "Withdrawal"
+        REVERSAL = "reversal", "Reversal"  # created when a transfer is cancelled
+
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
 
     txn_ref = models.CharField(max_length=20, unique=True, default=_new_txn_ref, editable=False)
     txn_type = models.CharField(max_length=12, choices=Type.choices)
@@ -125,6 +135,18 @@ class Transaction(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    # Cancellation. The row is never deleted: it is marked cancelled and a separate
+    # REVERSAL transaction moves the money back, so the ledger stays complete.
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.COMPLETED)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    cancel_reason = models.TextField(blank=True)
+    reversal_of = models.OneToOneField(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="reversed_by"
+    )
+
     class Meta:
         ordering = ["-created_at", "-id"]
         constraints = [
@@ -133,6 +155,16 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.txn_ref} {self.amount}"
+
+    def can_be_cancelled(self):
+        """Only a completed customer transfer, younger than 24 hours, between two open accounts."""
+        return (
+            self.txn_type == self.Type.TRANSFER
+            and self.status == self.Status.COMPLETED
+            and self.from_account_id is not None
+            and self.to_account_id is not None
+            and timezone.now() - self.created_at < CANCEL_WINDOW
+        )
 
     def from_party(self):
         """(name, account number) of the sending side."""

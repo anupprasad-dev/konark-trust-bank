@@ -12,6 +12,7 @@ export default function Accounts() {
   const [page, setPage] = useState(1);
   const [target, setTarget] = useState(null); // account for the deposit dialog
   const [toDelete, setToDelete] = useState(null); // account for the delete dialog
+  const [toReset, setToReset] = useState(null); // account for the reset-password dialog
   const [notice, setNotice] = useState("");
 
   const { data, loading, error, reload } = useApi("/employee/accounts/", {
@@ -54,12 +55,15 @@ export default function Accounts() {
                   <Td className="whitespace-nowrap">{formatDate(a.created_at)}</Td>
                   <Td><Badge kind={a.is_active ? "active" : "blocked"}>{a.is_active ? "Active" : "Blocked"}</Badge></Td>
                   <Td className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Link to={`/employee/accounts/${a.id}`} className="btn-outline px-3 py-1.5">
                         History
                       </Link>
                       <button className="btn-outline px-3 py-1.5" disabled={!a.is_active} onClick={() => setTarget(a)}>
                         Deposit
+                      </button>
+                      <button className="btn-outline px-3 py-1.5" onClick={() => setToReset(a)}>
+                        Reset password
                       </button>
                       <button className="btn-danger px-3 py-1.5" onClick={() => setToDelete(a)}>
                         Delete
@@ -87,6 +91,17 @@ export default function Accounts() {
           }}
         />
       )}
+      {toReset && (
+        <ResetPasswordDialog
+          account={toReset}
+          onClose={() => setToReset(null)}
+          onDone={(message) => {
+            setToReset(null);
+            setNotice(message);
+          }}
+        />
+      )}
+
       {toDelete && (
         <DeleteDialog
           account={toDelete}
@@ -100,6 +115,72 @@ export default function Accounts() {
         />
       )}
     </>
+  );
+}
+
+function ResetPasswordDialog({ account, onClose, onDone }) {
+  const [form, setForm] = useState({ new_password: "", confirm_password: "", employee_password: "" });
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErrors({});
+    setError("");
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/employee/accounts/${account.id}/reset-password/`, form);
+      onDone(data.detail);
+    } catch (err) {
+      const fields = fieldErrors(err);
+      setErrors(fields);
+      if (!Object.keys(fields).some((k) => k in form)) setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Reset customer password" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <p className="text-sm text-slate-600">
+          {account.holder_name} (@{account.username}) &middot; the old password is not needed.
+        </p>
+        <Alert>{error}</Alert>
+        <Input
+          label="New password for the customer"
+          type="password"
+          value={form.new_password}
+          onChange={set("new_password")}
+          error={errors.new_password}
+          autoComplete="new-password"
+          required
+        />
+        <Input
+          label="Confirm new password"
+          type="password"
+          value={form.confirm_password}
+          onChange={set("confirm_password")}
+          error={errors.confirm_password}
+          autoComplete="new-password"
+          required
+        />
+        <Input
+          label="Your own password (to confirm it is you)"
+          type="password"
+          value={form.employee_password}
+          onChange={set("employee_password")}
+          error={errors.employee_password}
+          autoComplete="current-password"
+          required
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={busy}>{busy ? "Saving..." : "Set new password"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

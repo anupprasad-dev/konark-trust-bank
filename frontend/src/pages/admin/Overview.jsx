@@ -1,3 +1,4 @@
+import Greeting from "../../components/Greeting.jsx";
 import { Alert, formatINR, PageHeader, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -16,6 +17,7 @@ export default function Overview() {
 
   return (
     <>
+      <Greeting />
       <PageHeader title="Admin Overview" subtitle="A quick look at the whole bank." />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (

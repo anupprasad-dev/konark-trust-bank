@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
   Alert, Badge, Empty, formatDate, Input, Modal, PageHeader, Pagination, Spinner, Table, Td,
@@ -28,6 +29,7 @@ export default function Requests() {
 
   return (
     <>
+      <Greeting />
       <PageHeader title="Registration Requests" subtitle="Review new customers and open their accounts." />
       <Alert type="success">{notice}</Alert>
 

@@ -210,6 +210,41 @@ class DeleteAccountSerializer(serializers.Serializer):
     confirm_username = serializers.CharField(max_length=150)
 
 
+class CancelTransactionSerializer(serializers.Serializer):
+    reason = serializers.CharField(
+        min_length=20, max_length=1000,
+        error_messages={
+            "min_length": "Please explain the reason in full (at least 20 characters).",
+            "blank": "Please explain the reason for cancelling.",
+        },
+    )
+
+
+class ResetCustomerPasswordSerializer(serializers.Serializer):
+    """An employee sets a new password for a customer who forgot theirs.
+
+    The employee's OWN password is asked as confirmation. Needs context: request, target_user.
+    """
+
+    new_password = serializers.CharField(write_only=True, min_length=8, max_length=128)
+    confirm_password = serializers.CharField(write_only=True)
+    employee_password = serializers.CharField(write_only=True)
+
+    def validate_employee_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Your own password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "The new passwords do not match."})
+        try:
+            validate_password(attrs["new_password"], user=self.context["target_user"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
+        return attrs
+
+
 # ------------------------------------------------------------------ accounts
 class AccountSerializer(serializers.ModelSerializer):
     holder_name = serializers.CharField(source="user.display_name", read_only=True)
@@ -238,6 +273,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "txn_ref", "txn_type", "amount", "remark", "created_at",
             "direction", "counterparty_name", "counterparty_account",
+            "status", "cancel_reason", "cancelled_at",
         ]
 
     def _is_debit(self, obj):
@@ -257,6 +293,22 @@ class TransactionSerializer(serializers.ModelSerializer):
         return self._other(obj)[1]
 
 
+class EmployeeTransactionSerializer(TransactionSerializer):
+    """Same as the customer's view, plus what an employee needs to cancel a transfer."""
+
+    can_cancel = serializers.SerializerMethodField()
+    cancelled_by_name = serializers.SerializerMethodField()
+
+    class Meta(TransactionSerializer.Meta):
+        fields = [*TransactionSerializer.Meta.fields, "can_cancel", "cancelled_by_name"]
+
+    def get_can_cancel(self, obj):
+        return obj.can_be_cancelled()
+
+    def get_cancelled_by_name(self, obj):
+        return obj.cancelled_by.display_name if obj.cancelled_by_id else None
+
+
 class AdminTransactionSerializer(serializers.ModelSerializer):
     from_account_number = serializers.SerializerMethodField()
     from_name = serializers.SerializerMethodField()
@@ -268,6 +320,7 @@ class AdminTransactionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "txn_ref", "txn_type", "amount", "remark", "created_at",
             "from_account_number", "from_name", "to_account_number", "to_name",
+            "status", "cancel_reason",
         ]
 
     def get_from_account_number(self, obj):

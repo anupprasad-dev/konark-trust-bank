@@ -68,6 +68,7 @@ def collect_statement(account, date_from=None, date_to=None):
             "name": other_name,
             "number": other_number,
             "remark": txn.remark,
+            "cancelled": txn.status == Transaction.Status.CANCELLED,
             "debit": txn.amount if is_debit else None,
             "credit": None if is_debit else txn.amount,
             "balance": balance,
@@ -178,6 +179,8 @@ def build_statement_pdf(account, date_from=None, date_to=None):
             details += f"<br/>A/c {escape(row['number'])}"
         if row["remark"]:
             details += f"<br/>{escape(row['remark'])}"
+        if row["cancelled"]:
+            details += "<br/><i>Cancelled - amount returned by a reversal entry</i>"
         table_rows.append([
             Paragraph(row["when"].strftime("%d %b %Y<br/>%H:%M"), cell),
             Paragraph(escape(row["ref"]), muted),

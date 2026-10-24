@@ -46,7 +46,12 @@ export default function AllTransactions() {
                     <p>{t.to_name}</p>
                     <p className="font-mono text-xs text-slate-500">{t.to_account_number}</p>
                   </Td>
-                  <Td><Badge kind={t.txn_type} /></Td>
+                  <Td>
+                    <Badge kind={t.txn_type} />
+                    {t.status === "cancelled" && (
+                      <div className="mt-1" title={t.cancel_reason}><Badge kind="cancelled">Cancelled</Badge></div>
+                    )}
+                  </Td>
                   <Td className="whitespace-nowrap font-semibold">{formatINR(t.amount)}</Td>
                 </tr>
               ))}

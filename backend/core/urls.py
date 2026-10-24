@@ -26,6 +26,8 @@ urlpatterns = [
     path("employee/accounts/<int:pk>/", views.EmployeeAccountDetailView.as_view()),
     path("employee/accounts/<int:pk>/transactions/", views.EmployeeAccountTransactionsView.as_view()),
     path("employee/accounts/<int:pk>/delete/", views.DeleteAccountView.as_view()),
+    path("employee/accounts/<int:pk>/reset-password/", views.ResetCustomerPasswordView.as_view()),
+    path("employee/transactions/<int:pk>/cancel/", views.CancelTransactionView.as_view()),
     path("employee/deposit/", views.DepositView.as_view()),
     # admin (named admin-panel so it does not clash with Django's /admin/)
     path("admin-panel/stats/", views.AdminStatsView.as_view()),

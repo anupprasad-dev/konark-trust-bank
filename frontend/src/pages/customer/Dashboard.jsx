@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Alert, Badge, Empty, formatDate, formatINR, PageHeader, Spinner } from "../../components/ui.jsx";
+import Greeting from "../../components/Greeting.jsx";
+import { Alert, Badge, Empty, formatDate, formatINR, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function CustomerDashboard() {
@@ -14,7 +15,7 @@ export default function CustomerDashboard() {
 
   return (
     <>
-      <PageHeader title={`Hello, ${acc.holder_name}`} subtitle="Here is a summary of your account." />
+      <Greeting />
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-gradient-to-br from-brand-700 to-brand-500 p-6 text-white shadow md:col-span-2">
@@ -59,6 +60,12 @@ export default function CustomerDashboard() {
                     {t.direction === "CREDIT" ? "+" : "-"} {formatINR(t.amount)}
                   </p>
                   <Badge kind={t.direction.toLowerCase()}>{t.direction}</Badge>
+                  {t.status === "cancelled" && (
+                    <span className="ml-1"><Badge kind="cancelled">Cancelled</Badge></span>
+                  )}
+                  {t.txn_type === "reversal" && (
+                    <span className="ml-1"><Badge kind="reversal">Reversal</Badge></span>
+                  )}
                 </div>
               </li>
             ))}

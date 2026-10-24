@@ -59,8 +59,21 @@ export default function History() {
                     <p className="text-xs text-slate-500">
                       {t.counterparty_account} {t.remark && `· ${t.remark}`}
                     </p>
+                    {t.status === "cancelled" && (
+                      <p className="mt-1 text-xs text-slate-600">
+                        <span className="font-semibold">Cancelled by the bank.</span> Reason: {t.cancel_reason}
+                      </p>
+                    )}
                   </Td>
-                  <Td><Badge kind={t.direction.toLowerCase()}>{t.direction}</Badge></Td>
+                  <Td>
+                    <Badge kind={t.direction.toLowerCase()}>{t.direction}</Badge>
+                    {t.status === "cancelled" && (
+                      <div className="mt-1"><Badge kind="cancelled">Cancelled</Badge></div>
+                    )}
+                    {t.txn_type === "reversal" && (
+                      <div className="mt-1"><Badge kind="reversal">Reversal</Badge></div>
+                    )}
+                  </Td>
                   <Td className={`whitespace-nowrap font-semibold ${t.direction === "CREDIT" ? "text-emerald-600" : "text-red-600"}`}>
                     {t.direction === "CREDIT" ? "+" : "-"} {formatINR(t.amount)}
                   </Td>

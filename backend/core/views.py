@@ -17,10 +17,12 @@ from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApproveSerializer,
-    BeneficiarySerializer, ChangePasswordSerializer, CustomerListSerializer,
-    DeleteAccountSerializer, DepositSerializer, EmployeeCreateSerializer, LoginSerializer, RegisterSerializer,
-    RegistrationRequestSerializer, RejectSerializer, TransactionSerializer,
-    TransferSerializer, UserSerializer,
+    BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
+    CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
+    EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
+    RegisterSerializer, RegistrationRequestSerializer, RejectSerializer,
+    ResetCustomerPasswordSerializer, TransactionSerializer, TransferSerializer,
+    UserSerializer,
 )
 
 
@@ -319,9 +321,55 @@ class EmployeeAccountTransactionsView(AccountHistoryBase):
     """An employee looks at a customer's transaction history."""
 
     permission_classes = [IsEmployee]
+    serializer_class = EmployeeTransactionSerializer
 
     def find_account(self):
         return get_object_or_404(Account.objects.select_related("user"), pk=self.kwargs["pk"])
+
+
+class CancelTransactionView(APIView):
+    """Cancel a customer's transfer (under 24 hours old). A full written reason is required."""
+
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        serializer = CancelTransactionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            txn = services.cancel_transfer(
+                employee=request.user, txn_id=pk, reason=serializer.validated_data["reason"]
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        sender = Account.objects.select_related("user").get(pk=txn.from_account_id)
+        return Response({
+            "detail": f"Transaction {txn.txn_ref} was cancelled. Rs. {txn.amount} was returned "
+                      f"to {sender.user.display_name} ({sender.account_number}).",
+        })
+
+
+class ResetCustomerPasswordView(APIView):
+    """Set a new password for a customer without knowing the old one."""
+
+    permission_classes = [IsEmployee]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request, pk):
+        account = get_object_or_404(Account.objects.select_related("user"), pk=pk)
+        customer = account.user
+        if customer.role != Role.CUSTOMER:
+            return _bad("Only customer passwords can be reset here.")
+        serializer = ResetCustomerPasswordSerializer(
+            data=request.data, context={"request": request, "target_user": customer}
+        )
+        serializer.is_valid(raise_exception=True)
+        customer.set_password(serializer.validated_data["new_password"])
+        customer.save(update_fields=["password"])
+        return Response({
+            "detail": f"Password changed for {customer.display_name} (@{customer.username}). "
+                      "Please tell the customer the new password; they can change it in My Profile."
+        })
 
 
 class DeleteAccountView(APIView):
