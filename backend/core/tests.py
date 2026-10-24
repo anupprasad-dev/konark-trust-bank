@@ -484,3 +484,128 @@ class StatementTests(BankTestBase):
         self.assertEqual(self.client.get("/api/customer/statement/").status_code, 403)
         self.logout()
         self.assertEqual(self.client.get("/api/customer/statement/").status_code, 401)
+
+
+class EmployeeSeesHistoryTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "1000")
+        self.bob = make_user("bob", Role.CUSTOMER, "Bob", True, "0")
+        self.login("alice")
+        for amount, remark in (("100", "rent"), ("25", "snacks")):
+            self.client.post(
+                "/api/customer/transfer/",
+                {"to_account_number": self.bob.account.account_number, "amount": amount,
+                 "remark": remark, "password": PASSWORD},
+                format="json",
+            )
+        self.logout()
+
+    def url(self, account, tail="transactions/"):
+        return f"/api/employee/accounts/{account.id}/{tail}"
+
+    def test_employee_sees_customer_history_from_that_customers_side(self):
+        self.login("emp1")
+        response = self.client.get(self.url(self.alice.account))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["count"], 2)
+        self.assertTrue(all(r["direction"] == "DEBIT" for r in response.data["results"]))
+        self.assertEqual(response.data["results"][0]["counterparty_name"], "Bob")
+
+        bob_side = self.client.get(self.url(self.bob.account))
+        self.assertEqual(bob_side.data["count"], 2)
+        self.assertTrue(all(r["direction"] == "CREDIT" for r in bob_side.data["results"]))
+
+    def test_filters_work_for_employee(self):
+        self.login("emp1")
+        self.assertEqual(self.client.get(self.url(self.alice.account) + "?q=rent").data["count"], 1)
+        self.assertEqual(self.client.get(self.url(self.alice.account) + "?type=credit").data["count"], 0)
+        self.assertEqual(self.client.get(self.url(self.alice.account) + "?type=debit").data["count"], 2)
+
+    def test_account_header_endpoint(self):
+        self.login("emp1")
+        response = self.client.get(self.url(self.alice.account, ""))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["username"], "alice")
+        self.assertEqual(response.data["account_number"], self.alice.account.account_number)
+        self.assertEqual(self.client.get("/api/employee/accounts/999999/transactions/").status_code, 404)
+        self.assertEqual(self.client.get("/api/employee/accounts/999999/").status_code, 404)
+
+    def test_only_employees_may_look(self):
+        url = self.url(self.alice.account)
+        self.assertEqual(self.client.get(url).status_code, 401)
+        for username in ("bob", "boss"):
+            self.logout()
+            self.login(username)
+            self.assertEqual(self.client.get(url).status_code, 403, username)
+            self.assertEqual(self.client.get(self.url(self.alice.account, "")).status_code, 403, username)
+
+    def test_customer_own_history_still_works(self):
+        self.login("bob")
+        self.assertEqual(self.client.get("/api/customer/transactions/").data["count"], 2)
+
+
+class EmployeeSeesCustomerHistoryTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "1000")
+        self.bob = make_user("bob", Role.CUSTOMER, "Bob", True, "0")
+        self.login("alice")
+        for amount, remark in (("100", "rent"), ("20", "snacks")):
+            response = self.client.post(
+                "/api/customer/transfer/",
+                {"to_account_number": self.bob.account.account_number, "amount": amount,
+                 "remark": remark, "password": PASSWORD},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+        self.logout()
+
+    def test_employee_can_read_a_customers_history(self):
+        self.login("emp1")
+        url = f"/api/employee/accounts/{self.alice.account.id}/transactions/"
+        data = self.client.get(url).data
+        self.assertEqual(data["count"], 2)
+        # shown from alice's side: both are debits to Bob
+        self.assertEqual({r["direction"] for r in data["results"]}, {"DEBIT"})
+        self.assertEqual(data["results"][0]["counterparty_name"], "Bob")
+
+        # the same two transactions, from bob's side, are credits
+        bob_url = f"/api/employee/accounts/{self.bob.account.id}/transactions/"
+        self.assertEqual({r["direction"] for r in self.client.get(bob_url).data["results"]}, {"CREDIT"})
+
+    def test_filters_work_for_employee(self):
+        self.login("emp1")
+        url = f"/api/employee/accounts/{self.alice.account.id}/transactions/"
+        self.assertEqual(self.client.get(url + "?q=rent").data["count"], 1)
+        self.assertEqual(self.client.get(url + "?type=credit").data["count"], 0)
+        self.assertEqual(self.client.get(url + "?type=debit").data["count"], 2)
+
+    def test_account_detail_for_the_page_header(self):
+        self.login("emp1")
+        data = self.client.get(f"/api/employee/accounts/{self.alice.account.id}/").data
+        self.assertEqual(data["holder_name"], "Alice")
+        self.assertEqual(data["balance"], "880.00")
+
+    def test_unknown_account_is_404(self):
+        self.login("emp1")
+        self.assertEqual(self.client.get("/api/employee/accounts/999999/transactions/").status_code, 404)
+        self.assertEqual(self.client.get("/api/employee/accounts/999999/").status_code, 404)
+
+    def test_only_employees_may_use_it(self):
+        url = f"/api/employee/accounts/{self.alice.account.id}/transactions/"
+        detail = f"/api/employee/accounts/{self.alice.account.id}/"
+        for username in ("bob", "boss"):  # a customer, and the admin
+            self.login(username)
+            self.assertEqual(self.client.get(url).status_code, 403)
+            self.assertEqual(self.client.get(detail).status_code, 403)
+            self.logout()
+        self.assertEqual(self.client.get(url).status_code, 401)
+
+    def test_customers_own_history_still_works(self):
+        self.login("alice")
+        self.assertEqual(self.client.get("/api/customer/transactions/").data["count"], 2)

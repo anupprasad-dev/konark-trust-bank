@@ -23,6 +23,8 @@ urlpatterns = [
     path("employee/requests/<int:pk>/approve/", views.ApproveRequestView.as_view()),
     path("employee/requests/<int:pk>/reject/", views.RejectRequestView.as_view()),
     path("employee/accounts/", views.EmployeeAccountListView.as_view()),
+    path("employee/accounts/<int:pk>/", views.EmployeeAccountDetailView.as_view()),
+    path("employee/accounts/<int:pk>/transactions/", views.EmployeeAccountTransactionsView.as_view()),
     path("employee/accounts/<int:pk>/delete/", views.DeleteAccountView.as_view()),
     path("employee/deposit/", views.DepositView.as_view()),
     # admin (named admin-panel so it does not clash with Django's /admin/)

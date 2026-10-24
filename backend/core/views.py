@@ -94,14 +94,22 @@ class MyAccountView(APIView):
         return Response(AccountSerializer(account).data)
 
 
-class MyTransactionsView(generics.ListAPIView):
-    """Query params: q, type=credit|debit, date_from=YYYY-MM-DD, date_to=YYYY-MM-DD."""
+class AccountHistoryBase(generics.ListAPIView):
+    """Transaction history of one account, seen from that account's side.
 
-    permission_classes = [IsCustomer]
+    Query params: q, type=credit|debit, date_from=YYYY-MM-DD, date_to=YYYY-MM-DD.
+    Subclasses decide whose account it is (`find_account`) and who may call it.
+    """
+
     serializer_class = TransactionSerializer
 
+    def find_account(self):
+        raise NotImplementedError
+
     def _account(self):
-        return get_object_or_404(Account, user=self.request.user)
+        if not hasattr(self, "_account_cache"):
+            self._account_cache = self.find_account()
+        return self._account_cache
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -180,6 +188,13 @@ class StatementView(APIView):
         response = HttpResponse(pdf, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
+
+
+class MyTransactionsView(AccountHistoryBase):
+    permission_classes = [IsCustomer]
+
+    def find_account(self):
+        return get_object_or_404(Account, user=self.request.user)
 
 
 class TransferView(APIView):
@@ -290,6 +305,23 @@ class EmployeeAccountListView(generics.ListAPIView):
                 | Q(user__username__icontains=q) | Q(user__phone__icontains=q)
             )
         return qs
+
+
+class EmployeeAccountDetailView(generics.RetrieveAPIView):
+    """One customer account (used as the header of the history page)."""
+
+    permission_classes = [IsEmployee]
+    serializer_class = AccountSerializer
+    queryset = Account.objects.select_related("user")
+
+
+class EmployeeAccountTransactionsView(AccountHistoryBase):
+    """An employee looks at a customer's transaction history."""
+
+    permission_classes = [IsEmployee]
+
+    def find_account(self):
+        return get_object_or_404(Account.objects.select_related("user"), pk=self.kwargs["pk"])
 
 
 class DeleteAccountView(APIView):

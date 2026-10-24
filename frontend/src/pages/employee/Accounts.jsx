@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
   Alert, Badge, Empty, formatDate, formatINR, Input, Modal, PageHeader, Pagination, Spinner, Table, Td,
@@ -54,6 +55,9 @@ export default function Accounts() {
                   <Td><Badge kind={a.is_active ? "active" : "blocked"}>{a.is_active ? "Active" : "Blocked"}</Badge></Td>
                   <Td className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Link to={`/employee/accounts/${a.id}`} className="btn-outline px-3 py-1.5">
+                        History
+                      </Link>
                       <button className="btn-outline px-3 py-1.5" disabled={!a.is_active} onClick={() => setTarget(a)}>
                         Deposit
                       </button>

@@ -9,6 +9,7 @@ import Beneficiaries from "./pages/customer/Beneficiaries.jsx";
 import CustomerDashboard from "./pages/customer/Dashboard.jsx";
 import History from "./pages/customer/History.jsx";
 import Transfer from "./pages/customer/Transfer.jsx";
+import AccountHistory from "./pages/employee/AccountHistory.jsx";
 import Accounts from "./pages/employee/Accounts.jsx";
 import Requests from "./pages/employee/Requests.jsx";
 import Customers from "./pages/admin/Customers.jsx";
@@ -85,6 +86,7 @@ export default function App() {
       >
         <Route index element={<Requests />} />
         <Route path="accounts" element={<Accounts />} />
+        <Route path="accounts/:id" element={<AccountHistory />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
