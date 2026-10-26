@@ -3,6 +3,7 @@ import Layout from "./components/Layout.jsx";
 import { Spinner } from "./components/ui.jsx";
 import { homePath, useAuth } from "./context/AuthContext.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
+import Home from "./pages/Home.jsx";
 import Profile from "./pages/Profile.jsx";
 import Statement from "./pages/customer/Statement.jsx";
 import Beneficiaries from "./pages/customer/Beneficiaries.jsx";
@@ -28,7 +29,8 @@ function Protected({ role, children }) {
 function Landing() {
   const { user, checking } = useAuth();
   if (checking) return <Spinner />;
-  return <Navigate to={user ? homePath(user.role) : "/login"} replace />;
+  if (user) return <Navigate to={homePath(user.role)} replace />;
+  return <Home />;
 }
 
 const customerLinks = [

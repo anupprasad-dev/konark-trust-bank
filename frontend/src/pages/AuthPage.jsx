@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
 import { Alert, Input } from "../components/ui.jsx";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
@@ -8,8 +8,7 @@ const FEATURES = [
   "Instant fund transfers to any Konark account",
   "Save beneficiaries for one-tap payments",
   "Search and filter your full transaction history",
-  // "Secure JWT login with role-based access",
-  " Real-time transaction alerts sent straight to your phone"
+  "Secure JWT login with role-based access",
 ];
 
 function LoginForm({ onNotice, notice }) {
@@ -161,29 +160,39 @@ function RegisterForm({ onDone, onBack }) {
 
 export default function AuthPage() {
   const { user, checking } = useAuth();
-  const [mode, setMode] = useState("login");
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState(params.get("mode") === "register" ? "register" : "login");
   const [notice, setNotice] = useState("");
 
   if (!checking && user) return <Navigate to={homePath(user.role)} replace />;
 
   return (
-    <div className="min-h-screen lg:flex">
-      {/* Left: welcome panel */}
-      <section className="flex flex-col justify-between bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500 px-8 py-10 text-white lg:w-1/2 lg:px-16 lg:py-16">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-xl font-bold text-brand-700">
-            K
-          </span>
-          <span className="text-xl font-bold">Konark Trust Bank</span>
+    <div className="min-h-dvh bg-slate-50 lg:flex lg:bg-white">
+      {/* Mobile: compact header. Desktop: full welcome panel on the left. */}
+      <section className="bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500 px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2.5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg font-bold text-brand-700 lg:h-11 lg:w-11 lg:text-xl">
+              K
+            </span>
+            <span className="text-lg font-bold lg:text-xl">Konark Trust Bank</span>
+          </Link>
+          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 lg:hidden">
+            &larr; Home
+          </Link>
         </div>
 
-        <div className="my-10 lg:my-0">
-          <p className="text-lg text-brand-100">Hello!</p>
-          <h1 className="mt-1 text-4xl font-bold leading-tight lg:text-5xl">
-            Welcome to the world of Konark Trust Bank
+        <div className="mt-6 lg:my-0 lg:mt-0">
+          <p className="hidden text-lg text-brand-100 lg:block">Hello!</p>
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl lg:mt-1 lg:text-5xl">
+            <span className="lg:hidden">{mode === "login" ? "Welcome back" : "Open your account"}</span>
+            <span className="hidden lg:inline">Welcome to the world of Konark Trust Bank</span>
           </h1>
-          <p className="mt-4 max-w-md text-brand-100">Your money, your trust. Simple and safe digital banking, anytime.</p>
-          <ul className="mt-8 space-y-3 text-sm">
+          <p className="mt-2 max-w-md text-sm text-brand-100 lg:mt-4 lg:text-base">
+            Your money, your trust. Simple and safe digital banking, anytime.
+          </p>
+
+          <ul className="mt-8 hidden space-y-3 text-sm lg:block">
             {FEATURES.map((f) => (
               <li key={f} className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-white/20 text-xs">
@@ -194,7 +203,7 @@ export default function AuthPage() {
             ))}
           </ul>
 
-          <div className="mt-10 rounded-xl bg-white/10 p-4 text-sm">
+          <div className="mt-10 hidden rounded-xl bg-white/10 p-4 text-sm lg:block">
             <p className="font-semibold">Are you a new user?</p>
             <p className="mt-1 text-brand-100">Choose the option below to open your online banking access.</p>
             <button
@@ -209,14 +218,14 @@ export default function AuthPage() {
           </div>
         </div>
 
-        <p className="text-xs text-brand-200">
+        <p className="hidden text-xs text-brand-200 lg:block">
           Demo project &mdash; not a real bank. Please do not enter real personal or financial data.
         </p>
       </section>
 
-      {/* Right: login / register */}
-      <section className="flex items-center justify-center px-6 py-10 lg:w-1/2">
-        <div className="card w-full max-w-md p-7">
+      {/* Form card: overlaps the header on mobile */}
+      <section className="-mt-10 px-4 pb-8 lg:mt-0 lg:flex lg:w-1/2 lg:items-center lg:justify-center lg:px-6 lg:py-10">
+        <div className="card mx-auto w-full max-w-md p-5 shadow-lg sm:p-7 lg:shadow-sm">
           {mode === "login" ? (
             <LoginForm
               notice={notice}
@@ -235,6 +244,9 @@ export default function AuthPage() {
             />
           )}
         </div>
+        <p className="mx-auto mt-4 max-w-md text-center text-xs text-slate-400 lg:hidden">
+          Demo project &mdash; not a real bank. Do not enter real personal or financial data.
+        </p>
       </section>
     </div>
   );

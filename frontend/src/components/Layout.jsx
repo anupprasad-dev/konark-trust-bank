@@ -8,7 +8,7 @@ export default function Layout({ roleLabel, links }) {
 
   const onLogout = () => {
     logout();
-    navigate("/login");
+    navigate("/");
   };
 
   const linkClass = ({ isActive }) =>
