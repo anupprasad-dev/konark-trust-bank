@@ -9,6 +9,21 @@
 }
 
 @layer components {
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee-rtl 40s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+  @keyframes marquee-rtl {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track { animation: none; }
+  }
   .input {
     @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base shadow-sm sm:py-2 sm:text-sm
       placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200;

@@ -25,8 +25,8 @@ export function AuthProvider({ children }) {
       .finally(() => setChecking(false));
   }, []);
 
-  const login = useCallback(async (username, password) => {
-    const { data } = await api.post("/auth/login/", { username, password });
+  const login = useCallback(async (username, password, portal) => {
+    const { data } = await api.post("/auth/login/", { username, password, portal });
     tokens.save(data.access, data.refresh, data.user);
     setUser(data.user);
     return data.user;

@@ -2,7 +2,27 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 /** Shared page frame (sidebar + content) for all three dashboards. */
-export default function Layout({ roleLabel, links }) {
+function ProfileIcon({ to, className = "" }) {
+  return (
+    <NavLink
+      to={to}
+      title="Profile"
+      aria-label="Profile"
+      className={({ isActive }) =>
+        `flex h-9 w-9 flex-none items-center justify-center rounded-full transition ${
+          isActive ? "bg-white text-brand-700" : "bg-white/10 text-white hover:bg-white/20"
+        } ${className}`
+      }
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M5 20c0-3.7 3.1-6 7-6s7 2.3 7 6" />
+      </svg>
+    </NavLink>
+  );
+}
+
+export default function Layout({ roleLabel, links, profileTo }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -29,9 +49,12 @@ export default function Layout({ roleLabel, links }) {
             </div>
             <p className="mt-1 text-xs uppercase tracking-wider text-brand-200">{roleLabel}</p>
           </div>
-          <button onClick={onLogout} className="btn rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20 md:hidden">
-            Logout
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            {profileTo && <ProfileIcon to={profileTo} />}
+            <button onClick={onLogout} className="btn rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20">
+              Logout
+            </button>
+          </div>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
@@ -43,8 +66,13 @@ export default function Layout({ roleLabel, links }) {
         </nav>
 
         <div className="hidden border-t border-white/10 p-4 md:absolute md:inset-x-0 md:bottom-0 md:block">
-          <p className="truncate text-sm font-semibold">{user?.full_name || user?.username}</p>
-          <p className="mb-3 truncate text-xs text-brand-200">@{user?.username}</p>
+          <div className="mb-3 flex items-center gap-3">
+            {profileTo && <ProfileIcon to={profileTo} />}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{user?.full_name || user?.username}</p>
+              <p className="truncate text-xs text-brand-200">@{user?.username}</p>
+            </div>
+          </div>
           <button onClick={onLogout} className="btn w-full bg-white/10 text-white hover:bg-white/20">
             Logout
           </button>

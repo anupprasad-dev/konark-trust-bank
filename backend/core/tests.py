@@ -829,3 +829,42 @@ class CancelTransferTests(BankTestBase):
             "/api/employee/transactions/999999/cancel/", {"reason": self.REASON}, format="json"
         )
         self.assertEqual(response.status_code, 400)
+
+
+class LoginPortalTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("cust", Role.CUSTOMER, with_account=True)
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+
+    def attempt(self, username, portal):
+        return self.client.post(
+            "/api/auth/login/", {"username": username, "password": PASSWORD, "portal": portal}, format="json"
+        )
+
+    def test_customer_portal_accepts_only_customers(self):
+        self.assertEqual(self.attempt("cust", "customer").status_code, 200)
+        for staff in ("emp1", "boss"):
+            response = self.attempt(staff, "customer")
+            self.assertEqual(response.status_code, 403)
+            self.assertNotIn("access", response.data)
+
+    def test_staff_portal_accepts_employee_and_admin_not_customer(self):
+        self.assertEqual(self.attempt("emp1", "staff").status_code, 200)
+        self.assertEqual(self.attempt("boss", "staff").status_code, 200)
+        response = self.attempt("cust", "staff")
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("access", response.data)
+
+    def test_wrong_password_is_still_401(self):
+        response = self.client.post(
+            "/api/auth/login/", {"username": "emp1", "password": "nope", "portal": "staff"}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_employee_list_shows_joining_date(self):
+        self.login("boss")
+        response = self.client.get("/api/admin-panel/employees/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["results"][0]["date_joined"])

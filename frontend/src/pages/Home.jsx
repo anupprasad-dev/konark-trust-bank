@@ -1,5 +1,12 @@
 import { Link } from "react-router-dom";
 
+const SAFETY_MESSAGES = [
+  "Konark Trust Bank will never ask for your password, PIN or OTP by phone, SMS or email.",
+  "Keep your bank account safe: never share your login details with anyone.",
+  "Always log out after you finish banking, especially on a shared device.",
+  "Check the website address before you type your password.",
+];
+
 const NAV = [
   { href: "#services", label: "Services" },
   { href: "#how", label: "Open an account" },
@@ -67,17 +74,17 @@ const STEPS = [
 const TIPS = [
   "Konark Trust Bank staff will never ask for your password over a call, message or email.",
   "Never share your password with anyone, even a person who says they work for the bank.",
-  "Use a password you do not use anywhere else, and change it from My Profile now and then.",
+  "Use a password you do not use anywhere else, and change it from the profile icon now and then.",
   "Always check the address bar before you type your password.",
 ];
 
 const FAQ = [
   { q: "How do I open an account?", a: "Press Register Now, fill in the form and submit. When a bank employee approves your request you can log in with the username and password you chose." },
-  { q: "I forgot my password. What now?", a: "Contact the bank. An employee can set a new password for you without needing the old one. After you log in, you can change it yourself from My Profile." },
+  { q: "I forgot my password. What now?", a: "Contact the bank. An employee can set a new password for you without needing the old one. After you log in, you can change it yourself from the profile icon." },
   { q: "Why was my registration rejected?", a: "The employee writes the reason when rejecting. A rejected request can be approved later, or you can register again with correct details." },
   { q: "Can I get a statement?", a: "Yes. After login open Account Statement, choose the dates and download the PDF." },
   { q: "A transfer was made by mistake. Can it be cancelled?", a: "Contact the bank within 24 hours. An employee can cancel a recent transfer if the receiver has not already spent the money, and records the reason for you to see." },
-  { q: "Is this a real bank?", a: "No. Konark Trust Bank is a demo project built for learning. Please do not enter real personal or financial details." },
+  { q: "Can employees and admins log in from Personal Banking?", a: "No. Customers use the Personal Banking login. Employees and admins use the separate Staff Login." },
 ];
 
 function Logo({ light = false }) {
@@ -96,8 +103,18 @@ function Logo({ light = false }) {
 export default function Home() {
   return (
     <div className="min-h-dvh bg-white">
-      <div className="bg-amber-100 px-4 py-2 text-center text-xs text-amber-900 sm:text-sm">
-        Demo project: Konark Trust Bank is a fictional bank. Please do not enter real personal or financial data.
+      <div className="overflow-hidden bg-amber-100 py-2 text-xs text-amber-900 sm:text-sm" role="note" aria-label="Safety notice">
+        <div className="marquee-track">
+          {[0, 1].map((copy) => (
+            <div key={copy} className="flex flex-none items-center" aria-hidden={copy === 1}>
+              {SAFETY_MESSAGES.map((m) => (
+                <span key={m} className="flex-none whitespace-nowrap px-8">
+                  <span className="mr-3 font-bold">&#9679;</span>{m}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -155,7 +172,7 @@ export default function Home() {
               <p className="mt-2 text-sm text-brand-100">
                 For bank employees and administrators. Review registrations, manage accounts and users.
               </p>
-              <Link to="/login" className="btn mt-4 w-full bg-white/15 text-white hover:bg-white/25">
+              <Link to="/login?portal=staff" className="btn mt-4 w-full bg-white/15 text-white hover:bg-white/25">
                 STAFF LOGIN
               </Link>
               <p className="mt-4 text-xs text-brand-200">Use the username your administrator gave you.</p>
@@ -240,9 +257,7 @@ export default function Home() {
       <footer className="bg-slate-900 py-8 text-sm text-slate-400">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
           <Logo light />
-          <p>
-            &copy; {new Date().getFullYear()} Konark Trust Bank. All rights reserved.
-          </p>
+          <p>&copy; {new Date().getFullYear()} Konark Trust Bank. All rights reserved.</p>
         </div>
       </footer>
     </div>

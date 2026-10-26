@@ -39,13 +39,11 @@ const customerLinks = [
   { to: "/customer/history", label: "Transaction History" },
   { to: "/customer/beneficiaries", label: "Beneficiaries" },
   { to: "/customer/statement", label: "Account Statement" },
-  { to: "/customer/profile", label: "My Profile" },
 ];
 
 const employeeLinks = [
   { to: "/employee", label: "Registration Requests", end: true },
   { to: "/employee/accounts", label: "Customer Accounts" },
-  { to: "/employee/profile", label: "My Profile" },
 ];
 
 const adminLinks = [
@@ -53,7 +51,6 @@ const adminLinks = [
   { to: "/admin/employees", label: "Employees" },
   { to: "/admin/customers", label: "Customers" },
   { to: "/admin/transactions", label: "All Transactions" },
-  { to: "/admin/profile", label: "My Profile" },
 ];
 
 export default function App() {
@@ -66,7 +63,7 @@ export default function App() {
         path="/customer"
         element={
           <Protected role="customer">
-            <Layout roleLabel="Personal Banking" links={customerLinks} />
+            <Layout roleLabel="Personal Banking" links={customerLinks} profileTo="/customer/profile" />
           </Protected>
         }
       >
@@ -82,7 +79,7 @@ export default function App() {
         path="/employee"
         element={
           <Protected role="employee">
-            <Layout roleLabel="Employee Portal" links={employeeLinks} />
+            <Layout roleLabel="Employee Portal" links={employeeLinks} profileTo="/employee/profile" />
           </Protected>
         }
       >
@@ -96,7 +93,7 @@ export default function App() {
         path="/admin"
         element={
           <Protected role="admin">
-            <Layout roleLabel="Admin Portal" links={adminLinks} />
+            <Layout roleLabel="Admin Portal" links={adminLinks} profileTo="/admin/profile" />
           </Protected>
         }
       >

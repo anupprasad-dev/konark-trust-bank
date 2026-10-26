@@ -5,6 +5,7 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
@@ -79,6 +80,9 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class LoginSerializer(TokenObtainPairSerializer):
+    # "customer" = Personal Banking login, "staff" = Employee/Admin login.
+    portal = serializers.ChoiceField(choices=["customer", "staff"], required=False, write_only=True)
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -88,7 +92,12 @@ class LoginSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         attrs["username"] = attrs.get("username", "").strip().lower()
+        portal = attrs.pop("portal", None)
         data = super().validate(attrs)
+        if portal == "customer" and self.user.role != Role.CUSTOMER:
+            raise PermissionDenied("Employees and admins must use Staff Login.")
+        if portal == "staff" and self.user.role == Role.CUSTOMER:
+            raise PermissionDenied("Customers must use Personal Banking Login.")
         data["user"] = UserSerializer(self.user).data
         return data
 
@@ -146,8 +155,8 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "full_name", "email", "phone", "password", "is_active"]
-        read_only_fields = ["id", "is_active"]
+        fields = ["id", "username", "full_name", "email", "phone", "password", "is_active", "date_joined"]
+        read_only_fields = ["id", "is_active", "date_joined"]
 
     def validate_username(self, value):
         value = _clean_username(value)
