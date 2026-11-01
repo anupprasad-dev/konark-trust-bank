@@ -1,4 +1,5 @@
 import { Children, cloneElement, isValidElement, useEffect } from "react";
+import Icon from "./icons.jsx";
 
 export const formatINR = (value) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(Number(value || 0));
@@ -17,8 +18,8 @@ export const formatDay = (value) => {
 
 export function Spinner({ label = "Loading..." }) {
   return (
-    <div className="flex items-center gap-3 py-10 text-sm text-slate-500">
-      <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
+    <div className="flex items-center justify-center gap-3 py-12 text-sm text-slate-500" role="status">
+      <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600" />
       {label}
     </div>
   );
@@ -27,11 +28,17 @@ export function Spinner({ label = "Loading..." }) {
 export function Alert({ type = "error", children }) {
   if (!children) return null;
   const styles = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    info: "border-brand-200 bg-brand-50 text-brand-800",
+    error: ["border-red-200 bg-red-50 text-red-800", "alert", "text-red-500"],
+    success: ["border-emerald-200 bg-emerald-50 text-emerald-800", "check", "text-emerald-600"],
+    info: ["border-brand-200 bg-brand-50 text-brand-800", "info", "text-brand-500"],
   };
-  return <div className={`rounded-lg border px-4 py-3 text-sm ${styles[type]}`}>{children}</div>;
+  const [box, icon, tint] = styles[type];
+  return (
+    <div className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm ${box}`} role={type === "error" ? "alert" : "status"}>
+      <Icon name={icon} className={`mt-0.5 h-4 w-4 ${tint}`} />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
 }
 
 const BADGES = {
@@ -52,10 +59,11 @@ const BADGES = {
 export function Badge({ kind, children }) {
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
         BADGES[kind] || "bg-slate-100 text-slate-700"
       }`}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
       {children ?? kind}
     </span>
   );
@@ -82,13 +90,72 @@ export function Input({ label, error, hint, ...props }) {
 
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="flex items-center gap-3 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
+          <span className="h-6 w-1 rounded-full bg-sun-500" aria-hidden="true" />
+          {title}
+        </h1>
+        {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-slate-500">{subtitle}</p>}
       </div>
       {action}
     </div>
+  );
+}
+
+/** Search box with a magnifier and optional Clear button. */
+export function SearchBox({ value, onChange, onSubmit, onClear, placeholder, active }) {
+  return (
+    <form className="mb-5 flex gap-2" onSubmit={onSubmit}>
+      <div className="relative min-w-0 max-w-md flex-1">
+        <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input className="input pl-9" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      </div>
+      <button className="btn-primary">Search</button>
+      {active && (
+        <button type="button" className="btn-outline" onClick={onClear}>Clear</button>
+      )}
+    </form>
+  );
+}
+
+/** A number with a label (admin overview). */
+export function StatCard({ icon, label, value, tone = "brand", hint }) {
+  const tones = {
+    brand: "bg-brand-50 text-brand-600",
+    sun: "bg-amber-50 text-amber-600",
+    green: "bg-emerald-50 text-emerald-600",
+    slate: "bg-slate-100 text-slate-600",
+  };
+  return (
+    <div className="card flex items-center gap-4">
+      <span className={`flex h-12 w-12 flex-none items-center justify-center rounded-xl ${tones[tone]}`}>
+        <Icon name={icon} className="h-6 w-6" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm text-slate-500">{label}</p>
+        <p className="num truncate text-2xl font-extrabold text-slate-900">{value}</p>
+        {hint && <p className="text-xs text-slate-500">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Round avatar with the first letter of a name. */
+export function Avatar({ name = "", className = "h-10 w-10 text-sm" }) {
+  return (
+    <span className={`flex flex-none items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700 ${className}`}>
+      {(name || "?").charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+/** Arrow in a circle: green down for money in, red up for money out. */
+export function DirectionIcon({ credit }) {
+  return (
+    <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-full ${credit ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>
+      <Icon name={credit ? "arrowDown" : "arrowUp"} className="h-4 w-4" />
+    </span>
   );
 }
 
@@ -121,7 +188,7 @@ export function Modal({ title, onClose, children }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
-      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-xl sm:p-6">
+      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="text-2xl leading-none text-slate-400 hover:text-slate-600" aria-label="Close">
@@ -135,7 +202,14 @@ export function Modal({ title, onClose, children }) {
 }
 
 export function Empty({ children }) {
-  return <div className="py-10 text-center text-sm text-slate-500">{children}</div>;
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-500">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <Icon name="inbox" className="h-6 w-6" />
+      </span>
+      <p className="max-w-xs">{children}</p>
+    </div>
+  );
 }
 
 /**
@@ -155,7 +229,7 @@ export function Table({ headers, children }) {
     <div className="overflow-x-auto">
       <table className="rtable w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+          <tr className="bg-slate-50 text-xs text-slate-500 [&>th:first-child]:rounded-l-lg [&>th:last-child]:rounded-r-lg">
             {headers.map((h) => (
               <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
                 {h}
@@ -163,7 +237,7 @@ export function Table({ headers, children }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">{rows}</tbody>
+        <tbody className="divide-y divide-slate-100 [&>tr:hover]:bg-slate-50/60">{rows}</tbody>
       </table>
     </div>
   );

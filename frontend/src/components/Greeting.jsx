@@ -29,11 +29,11 @@ export default function Greeting() {
   });
 
   return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-bold text-slate-900">
+    <div className="mb-6 sm:mb-8">
+      <p className="text-sm text-slate-500">{today}</p>
+      <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
         {greetingFor(now)}, {name}
       </h1>
-      <p className="mt-1 text-sm text-slate-500">{today}</p>
     </div>
   );
 }

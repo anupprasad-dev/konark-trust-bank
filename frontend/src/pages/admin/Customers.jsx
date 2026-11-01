@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api, { errorMessage } from "../../api";
-import { Alert, Badge, Empty, formatDate, formatDay, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
+import { Alert, Badge, Empty, formatDate, formatDay, formatINR, PageHeader, Pagination, SearchBox, Spinner, Table, Td } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function Customers() {
@@ -29,17 +29,22 @@ export default function Customers() {
       <PageHeader title="Customers" subtitle="All registered customers. Blocking stops login and transfers." />
       <Alert>{message}</Alert>
 
-      <form
-        className="mb-4 mt-3 flex gap-2"
+      <SearchBox
+        value={q}
+        onChange={setQ}
         onSubmit={(e) => {
           e.preventDefault();
           setPage(1);
           setSearch(q);
         }}
-      >
-        <input className="input max-w-sm" placeholder="Search name, username, email, account" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="btn-outline">Search</button>
-      </form>
+        onClear={() => {
+          setQ("");
+          setSearch("");
+          setPage(1);
+        }}
+        active={Boolean(search)}
+        placeholder="Search name, username, email, account"
+      />
 
       <div className="card">
         <Alert>{error}</Alert>

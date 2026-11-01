@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Badge, Empty, formatDate, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
+import { Alert, Badge, DirectionIcon, Empty, formatDate, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const BLANK = { q: "", type: "", date_from: "", date_to: "" };
@@ -28,7 +28,7 @@ export default function History() {
     <>
       <PageHeader title="Transaction History" subtitle="Search and filter all your transactions." />
 
-      <form onSubmit={apply} className="card mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <form onSubmit={apply} className="card mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <input className="input lg:col-span-2" placeholder="Search name, remark, ref, account" value={draft.q} onChange={set("q")} />
         <select className="input" value={draft.type} onChange={set("type")}>
           <option value="">All types</option>
@@ -55,6 +55,9 @@ export default function History() {
                   <Td className="whitespace-nowrap">{formatDate(t.created_at)}</Td>
                   <Td className="font-mono text-xs">{t.txn_ref}</Td>
                   <Td>
+                    <div className="flex items-start gap-3 text-left">
+                    <DirectionIcon credit={t.direction === "CREDIT"} />
+                    <div className="min-w-0">
                     <p className="font-medium">{t.counterparty_name}</p>
                     <p className="text-xs text-slate-500">
                       {t.counterparty_account} {t.remark && `· ${t.remark}`}
@@ -64,6 +67,8 @@ export default function History() {
                         <span className="font-semibold">Cancelled by the bank.</span> Reason: {t.cancel_reason}
                       </p>
                     )}
+                  </div>
+                    </div>
                   </Td>
                   <Td>
                     <Badge kind={t.direction.toLowerCase()}>{t.direction}</Badge>
@@ -74,7 +79,7 @@ export default function History() {
                       <div className="mt-1"><Badge kind="reversal">Reversal</Badge></div>
                     )}
                   </Td>
-                  <Td className={`whitespace-nowrap font-semibold ${t.direction === "CREDIT" ? "text-emerald-600" : "text-red-600"}`}>
+                  <Td className={`num whitespace-nowrap font-bold ${t.direction === "CREDIT" ? "text-emerald-600" : "text-red-600"}`}>
                     {t.direction === "CREDIT" ? "+" : "-"} {formatINR(t.amount)}
                   </Td>
                 </tr>

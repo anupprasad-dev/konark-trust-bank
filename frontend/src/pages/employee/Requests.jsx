@@ -2,7 +2,7 @@ import { useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
-  Alert, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, Spinner, Table, Td,
+  Alert, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, SearchBox, Spinner, Table, Td,
 } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -33,35 +33,38 @@ export default function Requests() {
       <PageHeader title="Registration Requests" subtitle="Review new customers and open their accounts." />
       <Alert type="success">{notice}</Alert>
 
-      <div className="mb-4 mt-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex w-full gap-1 rounded-lg bg-slate-100 p-1 sm:w-auto">
-          {TABS.map((t) => (
-            <button
-              key={t.label}
-              onClick={() => {
-                setStatus(t.key);
-                setPage(1);
-              }}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-none ${
-                status === t.key ? "bg-white text-brand-700 shadow-sm" : "text-slate-600"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <form
-          className="flex w-full gap-2 sm:w-auto"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(1);
-            setSearch(q);
-          }}
-        >
-          <input className="input min-w-0 sm:w-56" placeholder="Search name, username, email" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn-outline">Search</button>
-        </form>
+      <div className="mb-4 mt-3 flex w-full gap-1 rounded-xl bg-slate-200/60 p-1 sm:w-fit">
+        {TABS.map((t) => (
+          <button
+            key={t.label}
+            onClick={() => {
+              setStatus(t.key);
+              setPage(1);
+            }}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+              status === t.key ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+      <SearchBox
+        value={q}
+        onChange={setQ}
+        onSubmit={(e) => {
+          e.preventDefault();
+          setPage(1);
+          setSearch(q);
+        }}
+        onClear={() => {
+          setQ("");
+          setSearch("");
+          setPage(1);
+        }}
+        active={Boolean(search)}
+        placeholder="Search name, username, email"
+      />
 
       <div className="card">
         <Alert>{error}</Alert>

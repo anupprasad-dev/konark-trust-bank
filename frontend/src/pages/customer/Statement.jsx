@@ -81,16 +81,16 @@ export default function Statement() {
         <Alert type="success">{done}</Alert>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-outline px-3 py-1.5" onClick={preset(daysAgo(30), today)}>
+          <button type="button" className="chip-slate" onClick={preset(daysAgo(30), today)}>
             Last 30 days
           </button>
-          <button type="button" className="btn-outline px-3 py-1.5" onClick={preset(daysAgo(90), today)}>
+          <button type="button" className="chip-slate" onClick={preset(daysAgo(90), today)}>
             Last 90 days
           </button>
-          <button type="button" className="btn-outline px-3 py-1.5" onClick={preset(monthStart, today)}>
+          <button type="button" className="chip-slate" onClick={preset(monthStart, today)}>
             This month
           </button>
-          <button type="button" className="btn-outline px-3 py-1.5" onClick={preset("", "")}>
+          <button type="button" className="chip-slate" onClick={preset("", "")}>
             All time
           </button>
         </div>

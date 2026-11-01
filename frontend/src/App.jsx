@@ -34,23 +34,23 @@ function Landing() {
 }
 
 const customerLinks = [
-  { to: "/customer", label: "Dashboard", end: true },
-  { to: "/customer/transfer", label: "Fund Transfer" },
-  { to: "/customer/history", label: "Transaction History" },
-  { to: "/customer/beneficiaries", label: "Beneficiaries" },
-  { to: "/customer/statement", label: "Account Statement" },
+  { to: "/customer", label: "Dashboard", end: true, icon: "home" },
+  { to: "/customer/transfer", label: "Fund Transfer", icon: "send" },
+  { to: "/customer/history", label: "Transaction History", icon: "history" },
+  { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
+  { to: "/customer/statement", label: "Account Statement", icon: "statement" },
 ];
 
 const employeeLinks = [
-  { to: "/employee", label: "Registration Requests", end: true },
-  { to: "/employee/accounts", label: "Customer Accounts" },
+  { to: "/employee", label: "Registration Requests", end: true, icon: "inbox" },
+  { to: "/employee/accounts", label: "Customer Accounts", icon: "wallet" },
 ];
 
 const adminLinks = [
-  { to: "/admin", label: "Overview", end: true },
-  { to: "/admin/employees", label: "Employees" },
-  { to: "/admin/customers", label: "Customers" },
-  { to: "/admin/transactions", label: "All Transactions" },
+  { to: "/admin", label: "Overview", end: true, icon: "chart" },
+  { to: "/admin/employees", label: "Employees", icon: "shield" },
+  { to: "/admin/customers", label: "Customers", icon: "users" },
+  { to: "/admin/transactions", label: "All Transactions", icon: "ledger" },
 ];
 
 export default function App() {

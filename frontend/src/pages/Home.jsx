@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import BrandLogo from "../components/Brand.jsx";
 
 const SAFETY_MESSAGES = [
   "Konark Trust Bank will never ask for your password or PIN by phone, SMS or email.",
@@ -88,16 +89,7 @@ const FAQ = [
 ];
 
 function Logo({ light = false }) {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold ${light ? "bg-white text-brand-700" : "bg-brand-600 text-white"}`}>
-        K
-      </span>
-      <span className={`text-lg font-bold leading-tight ${light ? "text-white" : "text-slate-900"}`}>
-        Konark Trust Bank
-      </span>
-    </span>
-  );
+  return <BrandLogo light={light} />;
 }
 
 export default function Home() {
@@ -132,7 +124,7 @@ export default function Home() {
       <section className="bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500 text-white">
         <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:py-14 lg:grid-cols-2 lg:items-center lg:py-20">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-brand-200">Welcome</p>
+            <p className="text-sm font-semibold text-sun-300">Welcome</p>
             <h1 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
               Banking that is simple, safe and always with you.
             </h1>
@@ -144,7 +136,7 @@ export default function Home() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <div className="rounded-2xl bg-white p-5 text-slate-800 shadow-xl">
-              <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Personal banking</p>
+              <p className="text-sm font-bold text-brand-600">Personal banking</p>
               <p className="mt-2 text-sm text-slate-600">
                 Internet banking for customers: accounts, transfers and statements.
               </p>
@@ -159,7 +151,7 @@ export default function Home() {
             </div>
 
             <div className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/30">
-              <p className="text-xs font-bold uppercase tracking-widest text-brand-200">Staff portal</p>
+              <p className="text-sm font-bold text-sun-300">Staff portal</p>
               <p className="mt-2 text-sm text-brand-100">
                 For bank employees and administrators. Review registrations, manage accounts and users.
               </p>

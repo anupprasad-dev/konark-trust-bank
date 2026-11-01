@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Badge, Empty, formatDate, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
+import { Alert, Badge, Empty, formatDate, formatINR, PageHeader, Pagination, SearchBox, Spinner, Table, Td } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function AllTransactions() {
@@ -15,17 +15,22 @@ export default function AllTransactions() {
     <>
       <PageHeader title="All Transactions" subtitle="Read-only ledger of every transaction in the bank." />
 
-      <form
-        className="mb-4 flex gap-2"
+      <SearchBox
+        value={q}
+        onChange={setQ}
         onSubmit={(e) => {
           e.preventDefault();
           setPage(1);
           setSearch(q);
         }}
-      >
-        <input className="input max-w-sm" placeholder="Search reference, remark, account" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="btn-outline">Search</button>
-      </form>
+        onClear={() => {
+          setQ("");
+          setSearch("");
+          setPage(1);
+        }}
+        active={Boolean(search)}
+        placeholder="Search reference, remark, account"
+      />
 
       <div className="card">
         <Alert>{error}</Alert>

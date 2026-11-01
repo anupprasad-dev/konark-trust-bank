@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
-import { Alert, Empty, Input, PageHeader, Spinner, Table, Td } from "../../components/ui.jsx";
+import Icon from "../../components/icons.jsx";
+import { Alert, Avatar, Empty, Input, PageHeader, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function Beneficiaries() {
@@ -55,7 +57,7 @@ export default function Beneficiaries() {
         <Input label="Nickname (optional)" value={form.nickname} onChange={set("nickname")} error={errors.nickname} maxLength={40} />
         <div className="sm:pt-6">
           <button className="btn-primary w-full" disabled={busy}>
-            {busy ? "Adding..." : "Add beneficiary"}
+            <Icon name="plus" className="h-4 w-4" /> {busy ? "Adding..." : "Add beneficiary"}
           </button>
         </div>
         {message && (
@@ -65,29 +67,35 @@ export default function Beneficiaries() {
         )}
       </form>
 
-      <div className="card">
-        <Alert>{error}</Alert>
-        {loading ? (
-          <Spinner />
-        ) : data?.length ? (
-          <Table headers={["Name", "Nickname", "Account number", ""]}>
-            {data.map((b) => (
-              <tr key={b.id}>
-                <Td className="font-medium">{b.name}</Td>
-                <Td>{b.nickname || "-"}</Td>
-                <Td className="font-mono">{b.account_number}</Td>
-                <Td className="text-right">
-                  <button className="text-sm font-semibold text-red-600 hover:underline" onClick={() => remove(b.id)}>
-                    Remove
-                  </button>
-                </Td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          !error && <Empty>No beneficiaries yet. Add one above.</Empty>
-        )}
-      </div>
+      <Alert>{error}</Alert>
+      {loading ? (
+        <Spinner />
+      ) : data?.length ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {data.map((b) => (
+            <li key={b.id} className="card flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <Avatar name={b.nickname || b.name} className="h-11 w-11 text-base" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{b.nickname || b.name}</p>
+                  {b.nickname && <p className="truncate text-xs text-slate-500">{b.name}</p>}
+                  <p className="num font-mono text-sm text-slate-600">{b.account_number}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Link to={`/customer/transfer?to=${b.account_number}`} className="chip-brand flex-1">
+                  <Icon name="send" className="h-4 w-4" /> Send money
+                </Link>
+                <button className="chip-red" onClick={() => remove(b.id)}>
+                  Remove
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        !error && <div className="card"><Empty>No beneficiaries yet. Add an account number above to send money faster next time.</Empty></div>
+      )}
     </>
   );
 }

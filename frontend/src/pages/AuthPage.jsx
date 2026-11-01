@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
+import BrandLogo from "../components/Brand.jsx";
 import { Alert, Input } from "../components/ui.jsx";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
@@ -208,7 +209,7 @@ function StaffPanel() {
       <div className="mt-8 grid max-w-xl gap-4 xl:grid-cols-2">
         {STAFF_ROLES.map((role) => (
           <div key={role.title} className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/20 backdrop-blur">
-            <p className="text-sm font-semibold uppercase tracking-widest text-brand-200">{role.title}</p>
+            <p className="text-sm font-semibold text-sun-300">{role.title}</p>
             <ul className="mt-3 space-y-2 text-sm">
               {role.points.map((p) => (
                 <li key={p} className="flex items-start gap-2.5">
@@ -248,12 +249,7 @@ export default function AuthPage() {
         }`}
       >
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg font-bold text-brand-700 lg:h-11 lg:w-11 lg:text-xl">
-              K
-            </span>
-            <span className="text-lg font-bold lg:text-xl">Konark Trust Bank</span>
-          </Link>
+          <BrandLogo light to="/" size="lg" />
           <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 lg:hidden">
             &larr; Home
           </Link>
