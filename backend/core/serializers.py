@@ -270,8 +270,8 @@ class ResetCustomerPasswordSerializer(serializers.Serializer):
 class CustomerDetailsSerializer(serializers.Serializer):
     """An employee corrects a customer's personal details (the username never changes).
 
-    The employee's own password is asked as confirmation, because the mobile number is where
-    the customer's OTPs go. Needs context: request, target_user.
+    The employee's own password is asked as confirmation, because these details identify
+    the customer. Needs context: request, target_user.
     """
 
     full_name = serializers.CharField(max_length=120)

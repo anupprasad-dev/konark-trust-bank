@@ -7,9 +7,6 @@ urlpatterns = [
     path("health/", views.HealthView.as_view()),
     # auth
     path("auth/login/", views.LoginView.as_view()),
-    path("auth/login/verify/", views.LoginVerifyView.as_view()),
-    path("auth/login/resend/", views.LoginResendView.as_view()),
-    path("auth/login/add-phone/", views.AddPhoneView.as_view()),
     path("auth/refresh/", TokenRefreshView.as_view()),
     path("auth/register/", views.RegisterView.as_view()),
     path("auth/me/", views.MeView.as_view()),

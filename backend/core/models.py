@@ -1,7 +1,6 @@
 import uuid
 from datetime import timedelta
 
-from django.conf import settings
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
@@ -207,29 +206,3 @@ class Beneficiary(models.Model):
 
     def __str__(self):
         return f"{self.owner.username} -> {self.account_number}"
-
-
-class OneTimeCode(models.Model):
-    """A one-time password sent to a user (for login, or for a large transfer)."""
-
-    class Purpose(models.TextChoices):
-        LOGIN = "login", "Login"
-        TRANSFER = "transfer", "Transfer"
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="otp_codes")
-    purpose = models.CharField(max_length=10, choices=Purpose.choices)
-    challenge = models.CharField(max_length=40, unique=True)  # random id the browser holds
-    code_hash = models.CharField(max_length=64)
-    context_hash = models.CharField(max_length=64, blank=True)  # binds a transfer OTP to receiver+amount
-    created_at = models.DateTimeField(auto_now_add=True)
-    sent_at = models.DateTimeField(default=timezone.now)
-    expires_at = models.DateTimeField()
-    attempts = models.PositiveSmallIntegerField(default=0)
-    resend_count = models.PositiveSmallIntegerField(default=0)
-    used_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.purpose} OTP for {self.user.username}"

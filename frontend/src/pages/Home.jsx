@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 const SAFETY_MESSAGES = [
-  "Konark Trust Bank will never ask for your password, PIN or OTP by phone, SMS or email.",
+  "Konark Trust Bank will never ask for your password or PIN by phone, SMS or email.",
   "Keep your bank account safe: never share your login details with anyone.",
   "Always log out after you finish banking, especially on a shared device.",
   "Check the website address before you type your password.",
@@ -57,12 +57,12 @@ function Icon({ name }) {
 }
 
 const SERVICES = [
-  { icon: "transfer", title: "Fund transfer", text: "Send money to any Konark Trust Bank account in seconds. Transfers above ₹5,000 are confirmed with an OTP." },
+  { icon: "transfer", title: "Fund transfer", text: "Send money to any Konark Trust Bank account in seconds. Every transfer is confirmed with your password." },
   { icon: "people", title: "Beneficiaries", text: "Save the people you pay often and pick them from a list next time." },
   { icon: "statement", title: "Statements", text: "Search your history, filter by date and download a PDF statement." },
   { icon: "cash", title: "Cash deposit", text: "Deposit cash at the bank. A bank employee credits your account." },
   { icon: "check", title: "Account opening", text: "Register online. A bank employee reviews and approves your request." },
-  { icon: "shield", title: "Safe by design", text: "OTP-protected login, role-based access and a tamper-proof ledger." },
+  { icon: "shield", title: "Safe by design", text: "Role-based access, password re-checks for transfers, and a tamper-proof ledger." },
 ];
 
 const STEPS = [

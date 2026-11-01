@@ -23,26 +23,6 @@ def generate_account_number():
 
 
 @transaction.atomic
-def check_transfer_possible(user, to_number, amount: Decimal):
-    """Quick pre-check (no locks) so nobody gets an OTP for a transfer that cannot work.
-    Returns an error message or None. perform_transfer re-checks everything under lock."""
-    sender = Account.objects.filter(user=user).first()
-    if sender is None:
-        return "You do not have a bank account yet."
-    if to_number == sender.account_number:
-        return "You cannot transfer money to your own account."
-    receiver = Account.objects.filter(account_number=to_number).first()
-    if receiver is None:
-        return "Receiver account not found."
-    if not sender.is_active:
-        return "Your account is blocked. Please contact the bank."
-    if not receiver.is_active:
-        return "Receiver account is not active."
-    if sender.balance < amount:
-        return "Insufficient balance."
-    return None
-
-
 def perform_transfer(*, user, to_number, amount: Decimal, remark=""):
     """Move money from `user`'s account to `to_number`.
 

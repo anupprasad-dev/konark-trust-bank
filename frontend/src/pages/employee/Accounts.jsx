@@ -176,7 +176,7 @@ function EditDetailsDialog({ account, onClose, onDone }) {
           value={form.phone}
           onChange={set("phone")}
           error={errors.phone}
-          hint="Login OTPs are sent to this number. It can be shared by family members."
+          hint="10-digit mobile number. The same number can belong to more than one customer."
           inputMode="numeric"
           maxLength={10}
           required

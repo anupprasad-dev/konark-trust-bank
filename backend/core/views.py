@@ -1,7 +1,5 @@
-from datetime import date, datetime, time
+from datetime import datetime, time
 
-from django.conf import settings
-from django.core import signing
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -11,12 +9,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from . import otp, services
+from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, Beneficiary, OneTimeCode, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApproveSerializer, CustomerDetailsSerializer,
@@ -25,9 +22,8 @@ from .serializers import (
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
     RegisterSerializer, RegistrationRequestSerializer, RejectSerializer,
     ResetCustomerPasswordSerializer, TransactionSerializer, TransferSerializer,
-    UserSerializer, _clean_phone,
+    UserSerializer,
 )
-from rest_framework import serializers as drf_serializers
 
 
 def _bad(message):
@@ -43,148 +39,10 @@ class HealthView(APIView):
         return Response({"status": "ok", "bank": "Konark Trust Bank"})
 
 
-def _otp_error(exc):
-    response = Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    if exc.retry_after:
-        response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
-        response["Retry-After"] = str(exc.retry_after)
-        response.data["retry_after"] = exc.retry_after
-    return response
-
-
 class LoginView(TokenObtainPairView):
-    """Step 1: username + password. With OTP on, answers with an OTP challenge instead of tokens."""
-
     serializer_class = LoginSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-        except TokenError as exc:
-            raise InvalidToken(exc.args[0])
-
-        if not settings.OTP_LOGIN_REQUIRED:
-            return Response(serializer.validated_data, status=status.HTTP_200_OK)
-        user = serializer.user
-
-        # If several accounts share one mobile number, the date of birth tells them apart.
-        if user.phone and User.objects.filter(phone=user.phone).exclude(pk=user.pk).exists():
-            given = request.data.get("date_of_birth")
-            if not given:
-                return Response({"dob_required": True})
-            try:
-                given = date.fromisoformat(str(given))
-            except ValueError:
-                return _bad("Enter your date of birth.")
-            if user.date_of_birth is None:
-                return _bad("Your date of birth is not on file. Please ask the bank to add it.")
-            if given != user.date_of_birth:
-                return _bad("Date of birth does not match our records.")
-
-        if not user.phone:
-            # No mobile number on file yet: the page asks for one (see AddPhoneView).
-            token = signing.dumps({"uid": user.pk}, salt=ENROLL_SALT)
-            return Response({"phone_required": True, "enroll_token": token})
-        try:
-            payload = otp.issue(user, OneTimeCode.Purpose.LOGIN)
-        except otp.OTPError as exc:
-            return _otp_error(exc)
-        return Response(payload, status=status.HTTP_200_OK)
-
-
-ENROLL_SALT = "konark-otp-enroll"
-ENROLL_MAX_AGE = 10 * 60  # seconds
-
-
-def _phone_from_request(request):
-    """Returns (phone or None, error response or None)."""
-    raw = request.data.get("phone")
-    if not raw:
-        return None, None
-    try:
-        return _clean_phone(str(raw)), None
-    except drf_serializers.ValidationError as exc:
-        return None, _bad(str(exc.detail[0]))
-
-
-class AddPhoneView(APIView):
-    """For an account with no mobile number: save one after the OTP sent to it is confirmed."""
-
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth"
-
-    def post(self, request):
-        try:
-            data = signing.loads(request.data.get("enroll_token", ""), salt=ENROLL_SALT, max_age=ENROLL_MAX_AGE)
-            user = User.objects.get(pk=data["uid"], is_active=True)
-        except (signing.BadSignature, User.DoesNotExist, KeyError):
-            return _bad("Your login session has expired. Please log in again.")
-        if user.phone:
-            return _bad("A mobile number is already registered. Please log in again.")
-
-        phone, error = _phone_from_request(request)
-        if error:
-            return error
-        if not phone:
-            return _bad("Enter your 10-digit mobile number.")
-        try:
-            payload = otp.issue(user, OneTimeCode.Purpose.LOGIN, otp.phone_context(phone), phone=phone)
-        except otp.OTPError as exc:
-            return _otp_error(exc)
-        return Response(payload)
-
-
-class LoginVerifyView(APIView):
-    """Step 2: the 6-digit code. Answers with the tokens."""
-
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth"
-
-    def post(self, request):
-        phone, error = _phone_from_request(request)
-        if error:
-            return error
-        try:
-            user = otp.verify(
-                request.data.get("challenge_id"), request.data.get("otp"), OneTimeCode.Purpose.LOGIN,
-                context=otp.phone_context(phone) if phone else "",
-            )
-        except otp.OTPError as exc:
-            return _otp_error(exc)
-        if not user.is_active:
-            return _bad("This account is blocked. Please contact the bank.")
-        if phone:  # the OTP proved the person holds this number: save it
-            user.phone = phone
-            user.save(update_fields=["phone"])
-        refresh = LoginSerializer.get_token(user)
-        return Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-            "user": UserSerializer(user).data,
-        })
-
-
-class LoginResendView(APIView):
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "auth"
-
-    def post(self, request):
-        phone, error = _phone_from_request(request)
-        if error:
-            return error
-        try:
-            return Response(otp.resend(request.data.get("challenge_id"), OneTimeCode.Purpose.LOGIN, phone=phone))
-        except otp.OTPError as exc:
-            return _otp_error(exc)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -348,25 +206,6 @@ class TransferView(APIView):
         serializer = TransferSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-
-        # Transfers above the limit need a one-time password sent to the customer.
-        if data["amount"] > settings.OTP_TRANSFER_THRESHOLD:
-            context = otp.transfer_context(request.user, data["to_account_number"], data["amount"])
-            challenge_id, code = request.data.get("challenge_id"), request.data.get("otp")
-            try:
-                if not (challenge_id and code):
-                    problem = services.check_transfer_possible(
-                        request.user, data["to_account_number"], data["amount"]
-                    )
-                    if problem:
-                        return _bad(problem)
-                    payload = otp.issue(
-                        request.user, OneTimeCode.Purpose.TRANSFER, context, amount=data["amount"]
-                    )
-                    return Response(payload, status=status.HTTP_202_ACCEPTED)
-                otp.verify(challenge_id, code, OneTimeCode.Purpose.TRANSFER, user=request.user, context=context)
-            except otp.OTPError as exc:
-                return _otp_error(exc)
 
         try:
             txn = services.perform_transfer(

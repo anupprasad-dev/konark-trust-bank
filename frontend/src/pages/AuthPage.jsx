@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
-import OtpPanel from "../components/OtpPanel.jsx";
 import { Alert, Input } from "../components/ui.jsx";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
@@ -9,7 +8,7 @@ const FEATURES = [
   "Instant fund transfers to any Konark account",
   "Save beneficiaries for one-tap payments",
   "Search and filter your full transaction history",
-  "OTP protection for login and large transfers",
+  "Secure login with role-based access",
 ];
 
 const STAFF_ROLES = [
@@ -24,14 +23,9 @@ const STAFF_ROLES = [
 ];
 
 function LoginForm({ onNotice, notice, staff }) {
-  const { login, verifyLogin, resendLogin, addPhone } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
-  const [challenge, setChallenge] = useState(null); // set once the password step passed
-  const [needDob, setNeedDob] = useState(false); // several accounts share this mobile number
-  const [dob, setDob] = useState("");
-  const [enrollToken, setEnrollToken] = useState(null); // set when the account has no mobile number
-  const [newPhone, setNewPhone] = useState(""); // number typed in the "add mobile number" step
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -42,25 +36,8 @@ function LoginForm({ onNotice, notice, staff }) {
     setError("");
     setBusy(true);
     try {
-      const result = await login(
-        form.username.trim(), form.password, staff ? "staff" : "customer", needDob ? dob : undefined
-      );
-      if (result.dobRequired) {
-        setNeedDob(true);
-        setBusy(false);
-        return;
-      }
-      if (result.challenge) {
-        setChallenge(result.challenge);
-        setBusy(false);
-        return;
-      }
-      if (result.enrollToken) {
-        setEnrollToken(result.enrollToken);
-        setBusy(false);
-        return;
-      }
-      navigate(homePath(result.user.role), { replace: true });
+      const user = await login(form.username.trim(), form.password, staff ? "staff" : "customer");
+      navigate(homePath(user.role), { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       setError(
@@ -73,114 +50,6 @@ function LoginForm({ onNotice, notice, staff }) {
       setBusy(false);
     }
   };
-
-  const verify = async (code) => {
-    setError("");
-    setBusy(true);
-    try {
-      const user = await verifyLogin(challenge.challenge_id, code, enrollToken ? newPhone : undefined);
-      navigate(homePath(user.role), { replace: true });
-    } catch (err) {
-      setError(errorMessage(err));
-      setBusy(false);
-    }
-  };
-
-  const resend = async () => {
-    setError("");
-    try {
-      setChallenge({ ...challenge, ...(await resendLogin(challenge.challenge_id, enrollToken ? newPhone : undefined)) });
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
-  const sendToNewPhone = async (e) => {
-    e.preventDefault();
-    setError("");
-    setBusy(true);
-    try {
-      setChallenge(await addPhone(enrollToken, newPhone.trim()));
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const startOver = () => {
-    setChallenge(null);
-    setEnrollToken(null);
-    setNewPhone("");
-    setNeedDob(false);
-    setDob("");
-    setError("");
-    setForm({ ...form, password: "" });
-  };
-
-  if (enrollToken && !challenge) {
-    return (
-      <form onSubmit={sendToNewPhone} className="space-y-4">
-        <div className="text-center">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="7" y="3" width="10" height="18" rx="2" />
-              <path d="M11 18h2" />
-            </svg>
-          </span>
-          <h2 className="mt-3 text-xl font-bold text-slate-900">Add your mobile number</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            No mobile number is saved for this account. Enter yours and we will send the login OTP to it.
-            It is saved once you confirm the OTP.
-          </p>
-        </div>
-        <Alert>{error}</Alert>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Mobile number</span>
-          <div className="flex">
-            <span className="flex items-center rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 px-3 text-base text-slate-600 sm:text-sm">
-              +91
-            </span>
-            <input
-              className="input rounded-l-none"
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-              inputMode="numeric"
-              autoComplete="tel-national"
-              placeholder="10-digit number"
-              maxLength={10}
-              autoFocus
-              required
-            />
-          </div>
-        </label>
-        <button className="btn-primary w-full" disabled={busy || newPhone.length !== 10}>
-          {busy ? "Sending..." : "Send OTP"}
-        </button>
-        <p className="text-center text-sm">
-          <button type="button" className="font-medium text-slate-500 hover:text-slate-700" onClick={startOver}>
-            &larr; Back to login
-          </button>
-        </p>
-      </form>
-    );
-  }
-
-  if (challenge) {
-    return (
-      <OtpPanel
-        title="Verify it's you"
-        subtitle="Enter the 6-digit login code sent"
-        challenge={challenge}
-        error={error}
-        busy={busy}
-        submitLabel="Verify and login"
-        onSubmit={verify}
-        onResend={resend}
-
-      />
-    );
-  }
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -199,24 +68,8 @@ function LoginForm({ onNotice, notice, staff }) {
         autoComplete="current-password"
         required
       />
-      {needDob && (
-        <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50 p-3">
-          <p className="text-sm text-brand-800">
-            More than one account uses your mobile number. Please enter your date of birth to continue.
-          </p>
-          <Input
-            label="Date of birth"
-            type="date"
-            value={dob}
-            max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setDob(e.target.value)}
-            autoFocus
-            required
-          />
-        </div>
-      )}
       <button className="btn-primary w-full" disabled={busy}>
-        {busy ? "Checking..." : "Continue"}
+        {busy ? "Logging in..." : "Login"}
       </button>
       {!staff && (
         <p className="text-center text-sm text-slate-500">
@@ -296,7 +149,6 @@ function RegisterForm({ onDone, onBack }) {
         max={new Date().toISOString().slice(0, 10)}
         onChange={set("date_of_birth")}
         error={errors.date_of_birth}
-        hint="Used to confirm it is you if your mobile number is shared with a family member"
         autoComplete="bday"
         required
       />
@@ -370,7 +222,7 @@ function StaffPanel() {
       </div>
       <p className="mt-6 flex max-w-md items-start gap-2 text-sm text-brand-100">
         <ShieldIcon className="mt-0.5 h-4 w-4 flex-none" />
-        Never share your staff password or OTP with anyone, including colleagues.
+        Never share your staff password with anyone, including colleagues.
       </p>
     </div>
   );

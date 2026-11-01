@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
-import OtpPanel from "../../components/OtpPanel.jsx";
 import { Alert, Field, formatDate, formatINR, Input, PageHeader } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -14,19 +13,8 @@ export default function Transfer() {
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [challenge, setChallenge] = useState(null); // set when the bank asks for an OTP
-  const [otpError, setOtpError] = useState("");
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
-
-  const send = async (otp) => {
-    const payload = otp ? { ...form, challenge_id: challenge.challenge_id, otp } : form;
-    const response = await api.post("/customer/transfer/", payload);
-    if (response.status === 202) return setChallenge(response.data); // OTP needed (or a fresh one)
-    setReceipt(response.data);
-    setForm(EMPTY);
-    setChallenge(null);
-  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -34,7 +22,9 @@ export default function Transfer() {
     setErrors({});
     setBusy(true);
     try {
-      await send();
+      const { data } = await api.post("/customer/transfer/", form);
+      setReceipt(data);
+      setForm(EMPTY);
     } catch (err) {
       const fields = fieldErrors(err);
       setErrors(fields);
@@ -43,61 +33,6 @@ export default function Transfer() {
       setBusy(false);
     }
   };
-
-  const confirmOtp = async (code) => {
-    setOtpError("");
-    setBusy(true);
-    try {
-      await send(code);
-    } catch (err) {
-      setOtpError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const resendOtp = async () => {
-    setOtpError("");
-    try {
-      await send(); // asking for the transfer again sends a fresh code
-    } catch (err) {
-      setOtpError(errorMessage(err));
-    }
-  };
-
-  if (challenge) {
-    return (
-      <>
-        <PageHeader title="Fund Transfer" subtitle="One more step to keep your money safe." />
-        <div className="card mx-auto max-w-md sm:mx-0">
-          <OtpPanel
-            title="Confirm with OTP"
-            subtitle="This transfer is above ₹5,000, so we need to verify it. We sent a 6-digit SMS code"
-            challenge={challenge}
-            error={otpError}
-            busy={busy}
-            submitLabel={`Confirm and pay ${formatINR(form.amount)}`}
-            onSubmit={confirmOtp}
-            onResend={resendOtp}
-            summary={
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-xl bg-slate-50 p-4 text-sm">
-                <dt className="text-slate-500">Amount</dt>
-                <dd className="text-right text-base font-bold text-slate-900">{formatINR(form.amount)}</dd>
-                <dt className="text-slate-500">To account</dt>
-                <dd className="text-right font-mono text-slate-800">{form.to_account_number}</dd>
-                {form.remark && (
-                  <>
-                    <dt className="text-slate-500">Remark</dt>
-                    <dd className="truncate text-right text-slate-800">{form.remark}</dd>
-                  </>
-                )}
-              </dl>
-            }
-          />
-        </div>
-      </>
-    );
-  }
 
   if (receipt) {
     return (
@@ -165,7 +100,7 @@ export default function Transfer() {
           value={form.amount}
           onChange={set("amount")}
           error={errors.amount}
-          hint="Maximum ₹2,00,000 per transfer. Above ₹5,000 an OTP is needed."
+          hint="Maximum ₹2,00,000 per transfer"
           required
         />
         <Input label="Remark (optional)" value={form.remark} onChange={set("remark")} error={errors.remark} maxLength={140} />
