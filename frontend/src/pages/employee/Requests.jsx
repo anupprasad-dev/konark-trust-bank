@@ -2,7 +2,7 @@ import { useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
-  Alert, Badge, Empty, formatDate, Input, Modal, PageHeader, Pagination, Spinner, Table, Td,
+  Alert, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, Spinner, Table, Td,
 } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -79,6 +79,7 @@ export default function Requests() {
                   <Td>
                     <p>{r.email}</p>
                     <p className="text-xs text-slate-500">{r.phone}</p>
+                    <p className="text-xs text-slate-500">DOB: {formatDay(r.date_of_birth)}</p>
                   </Td>
                   <Td className="whitespace-nowrap">{formatDate(r.created_at)}</Td>
                   <Td>

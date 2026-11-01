@@ -8,6 +8,13 @@ export const formatDate = (value) =>
     ? new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
     : "-";
 
+/** A date without a time ("1992-03-15") as "15 Mar 1992". Avoids time-zone shifts. */
+export const formatDay = (value) => {
+  if (!value) return "-";
+  const [y, m, d] = String(value).slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+};
+
 export function Spinner({ label = "Loading..." }) {
   return (
     <div className="flex items-center gap-3 py-10 text-sm text-slate-500">

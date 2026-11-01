@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api, { errorMessage } from "../../api";
-import { Alert, Badge, Empty, formatDate, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
+import { Alert, Badge, Empty, formatDate, formatDay, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function Customers() {
@@ -53,6 +53,7 @@ export default function Customers() {
                   <Td>
                     <p className="font-medium">{c.full_name}</p>
                     <p className="text-xs text-slate-500">@{c.username} &middot; {c.email}</p>
+                    <p className="text-xs text-slate-500">{c.phone} &middot; DOB: {formatDay(c.date_of_birth)}</p>
                   </Td>
                   <Td className="font-mono">{c.account_number || "-"}</Td>
                   <Td className="font-semibold">{c.balance != null ? formatINR(c.balance) : "-"}</Td>

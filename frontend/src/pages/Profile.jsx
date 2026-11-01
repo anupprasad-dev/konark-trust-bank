@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api, { errorMessage, fieldErrors } from "../api";
-import { Alert, Badge, Input, PageHeader, Spinner } from "../components/ui.jsx";
+import { Alert, Badge, formatDay, Input, PageHeader, Spinner } from "../components/ui.jsx";
 import { useApi } from "../hooks";
 
 const BLANK = { old_password: "", new_password: "", confirm_password: "" };
@@ -43,6 +43,7 @@ export default function Profile() {
     ["Username", `@${data.username}`],
     ["Email", data.email || "-"],
     ["Mobile number", data.phone || "-"],
+    ["Date of birth", formatDay(data.date_of_birth)],
   ];
   if (data.account_number) rows.push(["Account number", data.account_number]);
 
@@ -70,7 +71,7 @@ export default function Profile() {
             ))}
           </dl>
           <p className="mt-4 text-xs text-slate-400">
-            To change your name, email or mobile number, please contact the bank.
+            To change your name, email, mobile number or date of birth, please contact the bank.
           </p>
         </div>
 
