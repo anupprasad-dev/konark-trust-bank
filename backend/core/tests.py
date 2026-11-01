@@ -968,3 +968,26 @@ class EmployeeEditCustomerTests(BankTestBase):
         self.login("emp1")
         response = self.client.patch("/api/employee/accounts/999999/details/", self.good, format="json")
         self.assertEqual(response.status_code, 404)
+
+
+class DateOfBirthShownTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "10")
+        User.objects.filter(pk=self.alice.pk).update(date_of_birth="1992-03-15")
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+
+    def test_customer_sees_own_date_of_birth(self):
+        self.login("alice")
+        self.assertEqual(self.client.get("/api/auth/me/").data["date_of_birth"], "1992-03-15")
+
+    def test_employee_sees_it_in_the_account_list(self):
+        self.login("emp1")
+        row = self.client.get("/api/employee/accounts/").data["results"][0]
+        self.assertEqual(row["date_of_birth"], "1992-03-15")
+
+    def test_admin_sees_it_in_the_customer_list(self):
+        self.login("boss")
+        row = self.client.get("/api/admin-panel/customers/").data["results"][0]
+        self.assertEqual(row["date_of_birth"], "1992-03-15")

@@ -60,7 +60,7 @@ def _clean_dob(value):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "full_name", "email", "phone", "role", "is_active"]
+        fields = ["id", "username", "full_name", "email", "phone", "date_of_birth", "role", "is_active"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -452,7 +452,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "username", "full_name", "email", "phone", "is_active",
+            "id", "username", "full_name", "email", "phone", "date_of_birth", "is_active",
             "date_joined", "account_number", "balance",
         ]
 
