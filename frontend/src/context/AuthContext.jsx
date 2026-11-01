@@ -33,8 +33,11 @@ export function AuthProvider({ children }) {
 
   // Step 1. Returns { challenge } when an OTP is needed, { enrollToken } when the account has
   // no mobile number yet, otherwise { user }.
-  const login = useCallback(async (username, password, portal) => {
-    const { data } = await api.post("/auth/login/", { username, password, portal });
+  const login = useCallback(async (username, password, portal, dateOfBirth) => {
+    const { data } = await api.post("/auth/login/", {
+      username, password, portal, ...(dateOfBirth && { date_of_birth: dateOfBirth }),
+    });
+    if (data.dob_required) return { dobRequired: true };
     if (data.otp_required) return { challenge: data };
     if (data.phone_required) return { enrollToken: data.enroll_token };
     return { user: finish(data) };

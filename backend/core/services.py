@@ -131,6 +131,7 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
         email=reg.email,
         full_name=reg.full_name,
         phone=reg.phone,
+        date_of_birth=reg.date_of_birth,
         role=Role.CUSTOMER,
         password=reg.password_hash,  # already hashed at registration time
     )

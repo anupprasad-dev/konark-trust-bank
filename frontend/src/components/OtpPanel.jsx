@@ -23,7 +23,8 @@ export default function OtpPanel({
   submitLabel = "Verify",
   onSubmit,
   onResend,
-  onBack,
+  onBack, // optional: no button when left out
+  backLabel = "Back",
 }) {
   const [digits, setDigits] = useState(Array(LENGTH).fill(""));
   const [now, setNow] = useState(Date.now());
@@ -155,10 +156,12 @@ export default function OtpPanel({
         {busy ? "Verifying..." : submitLabel}
       </button>
 
-      <div className="flex items-center justify-between text-sm">
-        <button type="button" className="font-medium text-slate-500 hover:text-slate-700" onClick={onBack}>
-          &larr; Back
-        </button>
+      <div className={`flex items-center text-sm ${onBack ? "justify-between" : "justify-center"}`}>
+        {onBack && (
+          <button type="button" className="font-medium text-slate-500 hover:text-slate-700" onClick={onBack}>
+            &larr; {backLabel}
+          </button>
+        )}
         {resendIn > 0 ? (
           <span className="text-slate-400">Resend in {resendIn}s</span>
         ) : (

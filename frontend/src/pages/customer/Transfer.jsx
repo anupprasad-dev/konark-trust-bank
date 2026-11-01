@@ -79,10 +79,6 @@ export default function Transfer() {
             submitLabel={`Confirm and pay ${formatINR(form.amount)}`}
             onSubmit={confirmOtp}
             onResend={resendOtp}
-            onBack={() => {
-              setChallenge(null);
-              setOtpError("");
-            }}
             summary={
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-xl bg-slate-50 p-4 text-sm">
                 <dt className="text-slate-500">Amount</dt>

@@ -13,6 +13,7 @@ export default function Accounts() {
   const [target, setTarget] = useState(null); // account for the deposit dialog
   const [toDelete, setToDelete] = useState(null); // account for the delete dialog
   const [toReset, setToReset] = useState(null); // account for the reset-password dialog
+  const [toEdit, setToEdit] = useState(null); // account for the edit-details dialog
   const [notice, setNotice] = useState("");
 
   const { data, loading, error, reload } = useApi("/employee/accounts/", {
@@ -62,6 +63,9 @@ export default function Accounts() {
                       <button className="btn-outline px-3 py-1.5" disabled={!a.is_active} onClick={() => setTarget(a)}>
                         Deposit
                       </button>
+                      <button className="btn-outline px-3 py-1.5" onClick={() => setToEdit(a)}>
+                        Edit details
+                      </button>
                       <button className="btn-outline px-3 py-1.5" onClick={() => setToReset(a)}>
                         Reset password
                       </button>
@@ -91,6 +95,17 @@ export default function Accounts() {
           }}
         />
       )}
+      {toEdit && (
+        <EditDetailsDialog
+          account={toEdit}
+          onClose={() => setToEdit(null)}
+          onDone={(message) => {
+            setToEdit(null);
+            setNotice(message);
+            reload();
+          }}
+        />
+      )}
       {toReset && (
         <ResetPasswordDialog
           account={toReset}
@@ -115,6 +130,81 @@ export default function Accounts() {
         />
       )}
     </>
+  );
+}
+
+function EditDetailsDialog({ account, onClose, onDone }) {
+  const [form, setForm] = useState({
+    full_name: account.holder_name || "",
+    email: account.email || "",
+    phone: account.phone || "",
+    date_of_birth: account.date_of_birth || "",
+    employee_password: "",
+  });
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErrors({});
+    setError("");
+    setBusy(true);
+    try {
+      const { data } = await api.patch(`/employee/accounts/${account.id}/details/`, form);
+      onDone(data.detail);
+    } catch (err) {
+      const fields = fieldErrors(err);
+      setErrors(fields);
+      if (!Object.keys(fields).some((k) => k in form)) setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Edit customer details" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <p className="text-sm text-slate-600">
+          @{account.username} &middot; <span className="font-mono">{account.account_number}</span>
+        </p>
+        <Alert>{error}</Alert>
+        <Input label="Full name" value={form.full_name} onChange={set("full_name")} error={errors.full_name} required />
+        <Input label="Email" type="email" value={form.email} onChange={set("email")} error={errors.email} required />
+        <Input
+          label="Mobile number"
+          value={form.phone}
+          onChange={set("phone")}
+          error={errors.phone}
+          hint="Login OTPs are sent to this number. It can be shared by family members."
+          inputMode="numeric"
+          maxLength={10}
+          required
+        />
+        <Input
+          label="Date of birth"
+          type="date"
+          value={form.date_of_birth}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={set("date_of_birth")}
+          error={errors.date_of_birth}
+          required
+        />
+        <Input
+          label="Your own password (to confirm it is you)"
+          type="password"
+          value={form.employee_password}
+          onChange={set("employee_password")}
+          error={errors.employee_password}
+          autoComplete="current-password"
+          required
+        />
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={busy}>{busy ? "Saving..." : "Save changes"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

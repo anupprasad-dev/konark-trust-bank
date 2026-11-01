@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 from django.conf import settings
 from django.core import signing
@@ -19,7 +19,7 @@ from .statement import StatementTooLarge, build_statement_pdf
 from .models import Account, Beneficiary, OneTimeCode, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
-    AccountSerializer, AdminTransactionSerializer, ApproveSerializer,
+    AccountSerializer, AdminTransactionSerializer, ApproveSerializer, CustomerDetailsSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
     CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
@@ -69,6 +69,21 @@ class LoginView(TokenObtainPairView):
         if not settings.OTP_LOGIN_REQUIRED:
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         user = serializer.user
+
+        # If several accounts share one mobile number, the date of birth tells them apart.
+        if user.phone and User.objects.filter(phone=user.phone).exclude(pk=user.pk).exists():
+            given = request.data.get("date_of_birth")
+            if not given:
+                return Response({"dob_required": True})
+            try:
+                given = date.fromisoformat(str(given))
+            except ValueError:
+                return _bad("Enter your date of birth.")
+            if user.date_of_birth is None:
+                return _bad("Your date of birth is not on file. Please ask the bank to add it.")
+            if given != user.date_of_birth:
+                return _bad("Date of birth does not match our records.")
+
         if not user.phone:
             # No mobile number on file yet: the page asks for one (see AddPhoneView).
             token = signing.dumps({"uid": user.pk}, salt=ENROLL_SALT)
@@ -117,8 +132,6 @@ class AddPhoneView(APIView):
             return error
         if not phone:
             return _bad("Enter your 10-digit mobile number.")
-        if User.objects.filter(phone=phone).exclude(pk=user.pk).exists():
-            return _bad("This mobile number is already used by another account.")
         try:
             payload = otp.issue(user, OneTimeCode.Purpose.LOGIN, otp.phone_context(phone), phone=phone)
         except otp.OTPError as exc:
@@ -148,8 +161,6 @@ class LoginVerifyView(APIView):
         if not user.is_active:
             return _bad("This account is blocked. Please contact the bank.")
         if phone:  # the OTP proved the person holds this number: save it
-            if User.objects.filter(phone=phone).exclude(pk=user.pk).exists():
-                return _bad("This mobile number is already used by another account.")
             user.phone = phone
             user.save(update_fields=["phone"])
         refresh = LoginSerializer.get_token(user)
@@ -521,6 +532,36 @@ class ResetCustomerPasswordView(APIView):
             "detail": f"Password changed for {customer.display_name} (@{customer.username}). "
                       "Please tell the customer the new password; they can change it in My Profile."
         })
+
+
+class UpdateCustomerDetailsView(APIView):
+    """Correct a customer's name, email, mobile number and date of birth."""
+
+    permission_classes = [IsEmployee]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def patch(self, request, pk):
+        account = get_object_or_404(Account.objects.select_related("user"), pk=pk)
+        customer = account.user
+        if customer.role != Role.CUSTOMER:
+            return _bad("Only customer details can be changed here.")
+        serializer = CustomerDetailsSerializer(
+            data=request.data, context={"request": request, "target_user": customer}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        changed = [f for f in ("full_name", "email", "phone", "date_of_birth") if getattr(customer, f) != data[f]]
+        for field in changed:
+            setattr(customer, field, data[field])
+        if changed:
+            customer.save(update_fields=changed)
+        account.refresh_from_db()
+        message = (
+            f"Details updated for {customer.display_name} (@{customer.username})."
+            if changed else "Nothing was changed."
+        )
+        return Response({"detail": message, "account": AccountSerializer(account).data})
 
 
 class DeleteAccountView(APIView):

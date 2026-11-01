@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.hashers import make_password
@@ -44,6 +45,14 @@ def _clean_phone(value):
     value = value.strip()
     if not PHONE_RE.match(value):
         raise serializers.ValidationError("Enter a valid 10-digit mobile number.")
+    return value
+
+
+def _clean_dob(value):
+    if value >= date.today():
+        raise serializers.ValidationError("Date of birth must be in the past.")
+    if value.year < date.today().year - 120:
+        raise serializers.ValidationError("Please enter a valid date of birth.")
     return value
 
 
@@ -107,8 +116,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RegistrationRequest
-        fields = ["id", "full_name", "username", "email", "phone", "password"]
+        fields = ["id", "full_name", "username", "email", "phone", "date_of_birth", "password"]
         read_only_fields = ["id"]
+        extra_kwargs = {"date_of_birth": {"required": True, "allow_null": False}}
+
+    def validate_date_of_birth(self, value):
+        return _clean_dob(value)
 
     def validate_full_name(self, value):
         value = value.strip()
@@ -190,7 +203,7 @@ class RegistrationRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = RegistrationRequest
         fields = [
-            "id", "full_name", "username", "email", "phone", "status",
+            "id", "full_name", "username", "email", "phone", "date_of_birth", "status",
             "rejection_reason", "created_at", "reviewed_at", "reviewed_by_name",
             "account_number",
         ]
@@ -254,18 +267,56 @@ class ResetCustomerPasswordSerializer(serializers.Serializer):
         return attrs
 
 
+class CustomerDetailsSerializer(serializers.Serializer):
+    """An employee corrects a customer's personal details (the username never changes).
+
+    The employee's own password is asked as confirmation, because the mobile number is where
+    the customer's OTPs go. Needs context: request, target_user.
+    """
+
+    full_name = serializers.CharField(max_length=120)
+    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=15)
+    date_of_birth = serializers.DateField()
+    employee_password = serializers.CharField(write_only=True)
+
+    def validate_employee_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Your own password is incorrect.")
+        return value
+
+    def validate_full_name(self, value):
+        value = value.strip()
+        if len(value) < 3:
+            raise serializers.ValidationError("Please enter the full name.")
+        return value
+
+    def validate_email(self, value):
+        value = value.strip().lower()
+        if User.objects.filter(email__iexact=value).exclude(pk=self.context["target_user"].pk).exists():
+            raise serializers.ValidationError("This email is already used by another user.")
+        return value
+
+    def validate_phone(self, value):
+        return _clean_phone(value)  # the same number may belong to more than one customer
+
+    def validate_date_of_birth(self, value):
+        return _clean_dob(value)
+
+
 # ------------------------------------------------------------------ accounts
 class AccountSerializer(serializers.ModelSerializer):
     holder_name = serializers.CharField(source="user.display_name", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
     email = serializers.CharField(source="user.email", read_only=True)
     phone = serializers.CharField(source="user.phone", read_only=True)
+    date_of_birth = serializers.DateField(source="user.date_of_birth", read_only=True)
 
     class Meta:
         model = Account
         fields = [
             "id", "account_number", "balance", "is_active", "created_at",
-            "holder_name", "username", "email", "phone",
+            "holder_name", "username", "email", "phone", "date_of_birth",
         ]
 
 

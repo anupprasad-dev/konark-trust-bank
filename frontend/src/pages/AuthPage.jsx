@@ -28,6 +28,8 @@ function LoginForm({ onNotice, notice, staff }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
   const [challenge, setChallenge] = useState(null); // set once the password step passed
+  const [needDob, setNeedDob] = useState(false); // several accounts share this mobile number
+  const [dob, setDob] = useState("");
   const [enrollToken, setEnrollToken] = useState(null); // set when the account has no mobile number
   const [newPhone, setNewPhone] = useState(""); // number typed in the "add mobile number" step
   const [error, setError] = useState("");
@@ -40,7 +42,14 @@ function LoginForm({ onNotice, notice, staff }) {
     setError("");
     setBusy(true);
     try {
-      const result = await login(form.username.trim(), form.password, staff ? "staff" : "customer");
+      const result = await login(
+        form.username.trim(), form.password, staff ? "staff" : "customer", needDob ? dob : undefined
+      );
+      if (result.dobRequired) {
+        setNeedDob(true);
+        setBusy(false);
+        return;
+      }
       if (result.challenge) {
         setChallenge(result.challenge);
         setBusy(false);
@@ -103,6 +112,8 @@ function LoginForm({ onNotice, notice, staff }) {
     setChallenge(null);
     setEnrollToken(null);
     setNewPhone("");
+    setNeedDob(false);
+    setDob("");
     setError("");
     setForm({ ...form, password: "" });
   };
@@ -166,14 +177,7 @@ function LoginForm({ onNotice, notice, staff }) {
         submitLabel="Verify and login"
         onSubmit={verify}
         onResend={resend}
-        onBack={() => {
-          if (enrollToken) {
-            setChallenge(null); // back to the "add mobile number" step
-            setError("");
-          } else {
-            startOver();
-          }
-        }}
+
       />
     );
   }
@@ -182,9 +186,7 @@ function LoginForm({ onNotice, notice, staff }) {
     <form onSubmit={submit} className="space-y-4">
       <div>
         <h2 className="text-xl font-bold text-slate-900">{staff ? "Staff Login" : "Login to your account"}</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {staff ? "For bank employees and administrators." : "Enter your username and password. We will then send you an OTP."}
-        </p>
+        {staff && <p className="mt-1 text-sm text-slate-500">For bank employees and administrators.</p>}
       </div>
       <Alert type="success">{notice}</Alert>
       <Alert>{error}</Alert>
@@ -197,6 +199,22 @@ function LoginForm({ onNotice, notice, staff }) {
         autoComplete="current-password"
         required
       />
+      {needDob && (
+        <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50 p-3">
+          <p className="text-sm text-brand-800">
+            More than one account uses your mobile number. Please enter your date of birth to continue.
+          </p>
+          <Input
+            label="Date of birth"
+            type="date"
+            value={dob}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setDob(e.target.value)}
+            autoFocus
+            required
+          />
+        </div>
+      )}
       <button className="btn-primary w-full" disabled={busy}>
         {busy ? "Checking..." : "Continue"}
       </button>
@@ -214,7 +232,7 @@ function LoginForm({ onNotice, notice, staff }) {
 
 function RegisterForm({ onDone, onBack }) {
   const [form, setForm] = useState({
-    full_name: "", username: "", email: "", phone: "", password: "", confirm: "",
+    full_name: "", username: "", email: "", phone: "", date_of_birth: "", password: "", confirm: "",
   });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState("");
@@ -271,6 +289,17 @@ function RegisterForm({ onDone, onBack }) {
         />
       </div>
       <Input label="Email" type="email" value={form.email} onChange={set("email")} error={errors.email} required />
+      <Input
+        label="Date of birth"
+        type="date"
+        value={form.date_of_birth}
+        max={new Date().toISOString().slice(0, 10)}
+        onChange={set("date_of_birth")}
+        error={errors.date_of_birth}
+        hint="Used to confirm it is you if your mobile number is shared with a family member"
+        autoComplete="bday"
+        required
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
           label="Password"

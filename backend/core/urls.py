@@ -28,6 +28,7 @@ urlpatterns = [
     path("employee/accounts/", views.EmployeeAccountListView.as_view()),
     path("employee/accounts/<int:pk>/", views.EmployeeAccountDetailView.as_view()),
     path("employee/accounts/<int:pk>/transactions/", views.EmployeeAccountTransactionsView.as_view()),
+    path("employee/accounts/<int:pk>/details/", views.UpdateCustomerDetailsView.as_view()),
     path("employee/accounts/<int:pk>/delete/", views.DeleteAccountView.as_view()),
     path("employee/accounts/<int:pk>/reset-password/", views.ResetCustomerPasswordView.as_view()),
     path("employee/transactions/<int:pk>/cancel/", views.CancelTransactionView.as_view()),

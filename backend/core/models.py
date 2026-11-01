@@ -27,6 +27,7 @@ class BankUserManager(UserManager):
 class User(AbstractUser):
     full_name = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=15, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CUSTOMER)
 
     objects = BankUserManager()
@@ -52,6 +53,7 @@ class RegistrationRequest(models.Model):
     username = models.CharField(max_length=30)
     email = models.EmailField()
     phone = models.CharField(max_length=15)
+    date_of_birth = models.DateField(null=True, blank=True)
     password_hash = models.CharField(max_length=256)  # already hashed, never plain text
 
     status = models.CharField(

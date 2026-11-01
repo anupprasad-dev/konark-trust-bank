@@ -51,7 +51,7 @@ class RegistrationFlowTests(BankTestBase):
     def register(self, **overrides):
         payload = {
             "full_name": "Rahul Sahoo", "username": "rahul_s", "email": "rahul@example.com",
-            "phone": "9123456780", "password": PASSWORD,
+            "phone": "9123456780", "date_of_birth": "1995-04-12", "password": PASSWORD,
         }
         payload.update(overrides)
         return self.client.post("/api/auth/register/", payload, format="json")
@@ -1046,11 +1046,12 @@ class AddPhoneAtLoginTests(BankTestBase):
         self.assertEqual(self.add_phone("12345").status_code, 400)
         self.assertEqual(OneTimeCode.objects.count(), 0)
 
-    def test_number_of_another_account_is_rejected(self):
+    def test_a_number_already_used_by_another_account_is_allowed(self):
         make_user("other", Role.CUSTOMER)  # phone 9876543210
-        response = self.add_phone("9876543210")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("already used", response.data["detail"])
+        step = self.add_phone("9876543210")
+        self.assertEqual(step.status_code, 200, step.content)
+        done = self.verify(step.data["challenge_id"], step.data["demo_otp"], "9876543210")
+        self.assertEqual(done.status_code, 200, done.content)
 
     def test_bad_token_is_rejected(self):
         self.assertEqual(self.add_phone(self.NEW_PHONE, token="garbage").status_code, 400)
@@ -1147,3 +1148,158 @@ class TransferOtpTests(BankTestBase):
     def test_asking_again_too_fast_is_blocked(self):
         self.assertEqual(self.send("6000").status_code, 202)
         self.assertEqual(self.send("6000").status_code, 429)
+
+
+class RegistrationDobTests(BankTestBase):
+    def register(self, **overrides):
+        payload = {
+            "full_name": "Rahul Sahoo", "username": "rahul_s", "email": "rahul@example.com",
+            "phone": "9123456780", "date_of_birth": "1995-04-12", "password": PASSWORD,
+        }
+        payload.update(overrides)
+        return self.client.post("/api/auth/register/", payload, format="json")
+
+    def test_date_of_birth_is_required(self):
+        payload = {
+            "full_name": "Rahul Sahoo", "username": "rahul_s", "email": "rahul@example.com",
+            "phone": "9123456780", "password": PASSWORD,
+        }
+        response = self.client.post("/api/auth/register/", payload, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("date_of_birth", response.data)
+
+    def test_future_date_of_birth_is_rejected(self):
+        response = self.register(date_of_birth="2999-01-01")
+        self.assertEqual(response.status_code, 400)
+
+    def test_date_of_birth_reaches_the_customer_when_approved(self):
+        make_user("emp1", Role.EMPLOYEE)
+        self.register()
+        self.login("emp1")
+        reg = RegistrationRequest.objects.get()
+        response = self.client.post(f"/api/employee/requests/{reg.id}/approve/", {"opening_balance": "500"}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(str(User.objects.get(username="rahul_s").date_of_birth), "1995-04-12")
+
+
+@override_settings(OTP_LOGIN_REQUIRED=True, OTP_DEMO_MODE=True)
+class SharedPhoneLoginTests(BankTestBase):
+    """When several customers share one mobile number, login also asks for the date of birth."""
+
+    def setUp(self):
+        super().setUp()
+        self.mother = make_user("mother", Role.CUSTOMER, with_account=True)
+        self.son = make_user("son", Role.CUSTOMER, with_account=True)  # same phone 9876543210
+        User.objects.filter(pk=self.mother.pk).update(date_of_birth="1970-01-05")
+        User.objects.filter(pk=self.son.pk).update(date_of_birth="2000-07-21")
+
+    def step1(self, username, **extra):
+        return self.client.post(
+            "/api/auth/login/",
+            {"username": username, "password": PASSWORD, "portal": "customer", **extra}, format="json",
+        )
+
+    def test_shared_number_asks_for_date_of_birth_before_sending_an_otp(self):
+        response = self.step1("mother")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["dob_required"])
+        self.assertNotIn("challenge_id", response.data)
+        self.assertEqual(OneTimeCode.objects.count(), 0)
+
+    def test_correct_date_of_birth_sends_the_otp(self):
+        response = self.step1("mother", date_of_birth="1970-01-05")
+        self.assertTrue(response.data["otp_required"])
+        self.assertEqual(OneTimeCode.objects.filter(user=self.mother).count(), 1)
+
+    def test_someone_elses_date_of_birth_is_rejected(self):
+        response = self.step1("mother", date_of_birth="2000-07-21")  # the son's
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not match", response.data["detail"])
+        self.assertEqual(OneTimeCode.objects.count(), 0)
+
+    def test_garbage_date_is_rejected(self):
+        self.assertEqual(self.step1("mother", date_of_birth="not-a-date").status_code, 400)
+
+    def test_missing_date_of_birth_on_file_blocks_login_with_a_clear_message(self):
+        User.objects.filter(pk=self.mother.pk).update(date_of_birth=None)
+        response = self.step1("mother", date_of_birth="1970-01-05")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not on file", response.data["detail"])
+
+    def test_unshared_number_needs_no_date_of_birth(self):
+        User.objects.filter(pk=self.son.pk).update(phone="9000000002")
+        response = self.step1("mother")
+        self.assertTrue(response.data["otp_required"])
+
+    def test_wrong_password_still_gets_401_not_a_dob_hint(self):
+        response = self.client.post(
+            "/api/auth/login/", {"username": "mother", "password": "nope", "portal": "customer"}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+
+class EmployeeEditCustomerTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        make_user("emp1", Role.EMPLOYEE)
+        make_user("boss", Role.ADMIN)
+        self.alice = make_user("alice", Role.CUSTOMER, "Alice", True, "10")
+        make_user("bob", Role.CUSTOMER, "Bob", True, "0")
+        self.url = f"/api/employee/accounts/{self.alice.account.id}/details/"
+        self.good = {
+            "full_name": "Alice Mohanty", "email": "alice.new@example.com",
+            "phone": "9123456780", "date_of_birth": "1992-03-15", "employee_password": PASSWORD,
+        }
+
+    def patch(self, **overrides):
+        return self.client.patch(self.url, {**self.good, **overrides}, format="json")
+
+    def test_employee_updates_details(self):
+        self.login("emp1")
+        response = self.patch()
+        self.assertEqual(response.status_code, 200, response.content)
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.full_name, "Alice Mohanty")
+        self.assertEqual(self.alice.email, "alice.new@example.com")
+        self.assertEqual(self.alice.phone, "9123456780")
+        self.assertEqual(str(self.alice.date_of_birth), "1992-03-15")
+        self.assertEqual(self.alice.username, "alice")  # never changes
+        self.assertEqual(response.data["account"]["phone"], "9123456780")
+
+    def test_needs_the_employees_own_password(self):
+        self.login("emp1")
+        response = self.patch(employee_password="wrong")
+        self.assertEqual(response.status_code, 400)
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.full_name, "Alice")
+
+    def test_email_of_another_user_is_rejected(self):
+        self.login("emp1")
+        self.assertEqual(self.patch(email="bob@example.com").status_code, 400)
+
+    def test_keeping_the_own_email_is_fine(self):
+        self.login("emp1")
+        self.assertEqual(self.patch(email="alice@example.com").status_code, 200)
+
+    def test_same_number_as_another_customer_is_allowed(self):
+        self.login("emp1")
+        self.assertEqual(self.patch(phone="9876543210").status_code, 200)  # Bob's number
+
+    def test_bad_values_are_rejected(self):
+        self.login("emp1")
+        self.assertEqual(self.patch(phone="12345").status_code, 400)
+        self.assertEqual(self.patch(date_of_birth="2999-01-01").status_code, 400)
+        self.assertEqual(self.patch(full_name="Al").status_code, 400)
+
+    def test_only_employees_may_edit(self):
+        for username in ("alice", "boss"):
+            self.logout()
+            self.login(username)
+            self.assertEqual(self.patch().status_code, 403)
+        self.logout()
+        self.assertEqual(self.patch().status_code, 401)
+
+    def test_unknown_account_is_404(self):
+        self.login("emp1")
+        response = self.client.patch("/api/employee/accounts/999999/details/", self.good, format="json")
+        self.assertEqual(response.status_code, 404)
