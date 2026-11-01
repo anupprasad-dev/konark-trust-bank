@@ -1,5 +1,6 @@
 """Django settings for Konark Trust Bank (demo project)."""
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -131,6 +132,39 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+# ---------------------------------------------------------------- OTP (one-time passwords)
+OTP_LOGIN_REQUIRED = config("OTP_LOGIN_REQUIRED", default=True, cast=bool)
+# A transfer of MORE than this amount (in INR) needs an OTP.
+OTP_TRANSFER_THRESHOLD = Decimal(config("OTP_TRANSFER_THRESHOLD", default="5000"))
+OTP_TTL_SECONDS = 300          # a code is valid for 5 minutes
+OTP_RESEND_COOLDOWN = 30       # seconds between two codes
+OTP_MAX_ATTEMPTS = 5           # wrong guesses before the code is dead
+OTP_MAX_RESENDS = 3
+
+# SMS delivery: "console" only logs the message on the server, "twilio" sends a real SMS.
+SMS_PROVIDER = config("SMS_PROVIDER", default="console")
+SMS_COUNTRY_CODE = config("SMS_COUNTRY_CODE", default="+91")
+TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = config("TWILIO_AUTH_TOKEN", default="")
+TWILIO_FROM_NUMBER = config("TWILIO_FROM_NUMBER", default="")
+
+# Optional extra copy of the OTP by email (only when EMAIL_HOST_USER is set).
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "noreply@konarktrustbank.local")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST_USER
+    else "django.core.mail.backends.console.EmailBackend"
+)
+# Only for local testing: also returns the OTP in the API answer so the page can show it.
+# Keep this OFF (default) on a real site: the OTP must reach the customer only by SMS.
+OTP_DEMO_MODE = config("OTP_DEMO_MODE", default=False, cast=bool)
 
 # ---------------------------------------------------------------- CORS / CSRF
 CORS_ALLOWED_ORIGINS = config(

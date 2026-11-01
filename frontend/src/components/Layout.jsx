@@ -32,14 +32,14 @@ export default function Layout({ roleLabel, links, profileTo }) {
   };
 
   const linkClass = ({ isActive }) =>
-    `block rounded-lg px-3 py-2 text-sm font-medium transition ${
+    `block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
       isActive ? "bg-white/15 text-white" : "text-brand-100 hover:bg-white/10 hover:text-white"
     }`;
 
   return (
     <div className="min-h-screen md:flex">
       <aside className="bg-brand-800 text-white md:fixed md:inset-y-0 md:w-64">
-        <div className="flex items-center justify-between px-5 py-4 md:block">
+        <div className="flex items-center justify-between px-4 py-3 md:block md:px-5 md:py-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-lg font-bold text-brand-700">

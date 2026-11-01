@@ -57,12 +57,12 @@ function Icon({ name }) {
 }
 
 const SERVICES = [
-  { icon: "transfer", title: "Fund transfer", text: "Send money to any Konark Trust Bank account in seconds, confirmed with your password." },
+  { icon: "transfer", title: "Fund transfer", text: "Send money to any Konark Trust Bank account in seconds. Transfers above ₹5,000 are confirmed with an OTP." },
   { icon: "people", title: "Beneficiaries", text: "Save the people you pay often and pick them from a list next time." },
   { icon: "statement", title: "Statements", text: "Search your history, filter by date and download a PDF statement." },
   { icon: "cash", title: "Cash deposit", text: "Deposit cash at the bank. A bank employee credits your account." },
   { icon: "check", title: "Account opening", text: "Register online. A bank employee reviews and approves your request." },
-  { icon: "shield", title: "Safe by design", text: "Role-based access, password re-checks for transfers, and a tamper-proof ledger." },
+  { icon: "shield", title: "Safe by design", text: "OTP-protected login, role-based access and a tamper-proof ledger." },
 ];
 
 const STEPS = [
@@ -125,7 +125,6 @@ export default function Home() {
               <a key={item.href} href={item.href} className="hover:text-brand-700">{item.label}</a>
             ))}
           </nav>
-          <Link to="/login" className="btn-primary">Login</Link>
         </div>
       </header>
 
@@ -141,12 +140,6 @@ export default function Home() {
               Your money, your trust. Check your balance, send money, keep your beneficiaries and
               download statements from your phone or computer.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link to="/login" className="btn bg-white text-brand-700 hover:bg-brand-50">Login</Link>
-              <Link to="/login?mode=register" className="btn border border-white/60 text-white hover:bg-white/10">
-                Register Now
-              </Link>
-            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -162,8 +155,6 @@ export default function Home() {
                     New user registration
                   </Link>
                 </li>
-                <li><a href="#faq" className="font-medium text-brand-600 hover:underline">Forgot password?</a></li>
-                <li><a href="#security" className="font-medium text-brand-600 hover:underline">Stay safe online</a></li>
               </ul>
             </div>
 
@@ -175,7 +166,6 @@ export default function Home() {
               <Link to="/login?portal=staff" className="btn mt-4 w-full bg-white/15 text-white hover:bg-white/25">
                 STAFF LOGIN
               </Link>
-              <p className="mt-4 text-xs text-brand-200">Use the username your administrator gave you.</p>
             </div>
           </div>
         </div>
@@ -215,7 +205,6 @@ export default function Home() {
               </li>
             ))}
           </ol>
-          <Link to="/login?mode=register" className="btn-primary mt-6">Start registration</Link>
         </div>
       </section>
 

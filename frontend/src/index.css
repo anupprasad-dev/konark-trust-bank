@@ -12,7 +12,8 @@
   .marquee-track {
     display: flex;
     width: max-content;
-    animation: marquee-rtl 40s linear infinite;
+    /* Stays still for the first second after the page opens, then starts moving. */
+    animation: marquee-rtl 40s linear 1s infinite;
   }
   .marquee-track:hover {
     animation-play-state: paused;
@@ -41,7 +42,47 @@
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
+  /* Phones: table rows turn into cards */
+  @media (max-width: 639px) {
+    .rtable thead { display: none; }
+    .rtable, .rtable tbody, .rtable tr, .rtable td { display: block; width: 100%; }
+    .rtable tbody { border: 0; }
+    .rtable tr {
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.875rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      background: #fff;
+    }
+    .rtable tr:last-child { margin-bottom: 0; }
+    .rtable td {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.45rem 0 !important;
+      text-align: right;
+      white-space: normal;
+      border-top: 1px dashed #eef2f7;
+    }
+    .rtable td:first-child { border-top: 0; }
+    .rtable td::before {
+      content: attr(data-label);
+      flex: none;
+      padding-top: 0.15rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+      text-align: left;
+    }
+    .rtable td[data-label=""]::before { display: none; }
+    .rtable td[data-label=""] { justify-content: flex-end; }
+    .rtable td:empty { display: none; }
+  }
+
   .card {
-    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+    @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
   }
 }

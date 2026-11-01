@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Account, Beneficiary, RegistrationRequest, Transaction, User
+from .models import Account, Beneficiary, OneTimeCode, RegistrationRequest, Transaction, User
 
 
 @admin.register(User)
@@ -51,3 +51,13 @@ class TransactionAdmin(admin.ModelAdmin):
 @admin.register(Beneficiary)
 class BeneficiaryAdmin(admin.ModelAdmin):
     list_display = ("owner", "account_number", "name")
+
+
+@admin.register(OneTimeCode)
+class OneTimeCodeAdmin(admin.ModelAdmin):
+    list_display = ("user", "purpose", "created_at", "expires_at", "attempts", "used_at")
+    list_filter = ("purpose",)
+    readonly_fields = [f.name for f in OneTimeCode._meta.fields]
+
+    def has_add_permission(self, request):
+        return False

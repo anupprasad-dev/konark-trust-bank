@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
+import OtpPanel from "../components/OtpPanel.jsx";
 import { Alert, Input } from "../components/ui.jsx";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
@@ -8,13 +9,27 @@ const FEATURES = [
   "Instant fund transfers to any Konark account",
   "Save beneficiaries for one-tap payments",
   "Search and filter your full transaction history",
-  "Secure JWT login with role-based access",
+  "OTP protection for login and large transfers",
+];
+
+const STAFF_ROLES = [
+  {
+    title: "Employee",
+    points: ["Review registration requests", "Manage customer accounts", "Record cash deposits"],
+  },
+  {
+    title: "Administrator",
+    points: ["Create and manage employees", "Oversee all customers", "Audit the full ledger"],
+  },
 ];
 
 function LoginForm({ onNotice, notice, staff }) {
-  const { login } = useAuth();
+  const { login, verifyLogin, resendLogin, addPhone } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
+  const [challenge, setChallenge] = useState(null); // set once the password step passed
+  const [enrollToken, setEnrollToken] = useState(null); // set when the account has no mobile number
+  const [newPhone, setNewPhone] = useState(""); // number typed in the "add mobile number" step
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -25,8 +40,18 @@ function LoginForm({ onNotice, notice, staff }) {
     setError("");
     setBusy(true);
     try {
-      const user = await login(form.username.trim(), form.password, staff ? "staff" : "customer");
-      navigate(homePath(user.role), { replace: true });
+      const result = await login(form.username.trim(), form.password, staff ? "staff" : "customer");
+      if (result.challenge) {
+        setChallenge(result.challenge);
+        setBusy(false);
+        return;
+      }
+      if (result.enrollToken) {
+        setEnrollToken(result.enrollToken);
+        setBusy(false);
+        return;
+      }
+      navigate(homePath(result.user.role), { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       setError(
@@ -40,12 +65,130 @@ function LoginForm({ onNotice, notice, staff }) {
     }
   };
 
+  const verify = async (code) => {
+    setError("");
+    setBusy(true);
+    try {
+      const user = await verifyLogin(challenge.challenge_id, code, enrollToken ? newPhone : undefined);
+      navigate(homePath(user.role), { replace: true });
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    setError("");
+    try {
+      setChallenge({ ...challenge, ...(await resendLogin(challenge.challenge_id, enrollToken ? newPhone : undefined)) });
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const sendToNewPhone = async (e) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      setChallenge(await addPhone(enrollToken, newPhone.trim()));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startOver = () => {
+    setChallenge(null);
+    setEnrollToken(null);
+    setNewPhone("");
+    setError("");
+    setForm({ ...form, password: "" });
+  };
+
+  if (enrollToken && !challenge) {
+    return (
+      <form onSubmit={sendToNewPhone} className="space-y-4">
+        <div className="text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="7" y="3" width="10" height="18" rx="2" />
+              <path d="M11 18h2" />
+            </svg>
+          </span>
+          <h2 className="mt-3 text-xl font-bold text-slate-900">Add your mobile number</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            No mobile number is saved for this account. Enter yours and we will send the login OTP to it.
+            It is saved once you confirm the OTP.
+          </p>
+        </div>
+        <Alert>{error}</Alert>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Mobile number</span>
+          <div className="flex">
+            <span className="flex items-center rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 px-3 text-base text-slate-600 sm:text-sm">
+              +91
+            </span>
+            <input
+              className="input rounded-l-none"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              inputMode="numeric"
+              autoComplete="tel-national"
+              placeholder="10-digit number"
+              maxLength={10}
+              autoFocus
+              required
+            />
+          </div>
+        </label>
+        <button className="btn-primary w-full" disabled={busy || newPhone.length !== 10}>
+          {busy ? "Sending..." : "Send OTP"}
+        </button>
+        <p className="text-center text-sm">
+          <button type="button" className="font-medium text-slate-500 hover:text-slate-700" onClick={startOver}>
+            &larr; Back to login
+          </button>
+        </p>
+      </form>
+    );
+  }
+
+  if (challenge) {
+    return (
+      <OtpPanel
+        title="Verify it's you"
+        subtitle="Enter the 6-digit login code sent"
+        challenge={challenge}
+        error={error}
+        busy={busy}
+        submitLabel="Verify and login"
+        onSubmit={verify}
+        onResend={resend}
+        onBack={() => {
+          if (enrollToken) {
+            setChallenge(null); // back to the "add mobile number" step
+            setError("");
+          } else {
+            startOver();
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <form onSubmit={submit} className="space-y-4">
-      <h2 className="text-xl font-bold text-slate-900">{staff ? "Staff Login" : "Username / Password"}</h2>
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">{staff ? "Staff Login" : "Login to your account"}</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {staff ? "For bank employees and administrators." : "Enter your username and password. We will then send you an OTP."}
+        </p>
+      </div>
       <Alert type="success">{notice}</Alert>
       <Alert>{error}</Alert>
-      <Input label="Username" value={form.username} onChange={set("username")} autoComplete="username" required />
+      <Input label="Username" value={form.username} onChange={set("username")} autoComplete="username" autoCapitalize="none" required />
       <Input
         label="Password"
         type="password"
@@ -55,16 +198,11 @@ function LoginForm({ onNotice, notice, staff }) {
         required
       />
       <button className="btn-primary w-full" disabled={busy}>
-        {busy ? "Logging in..." : "Login"}
+        {busy ? "Checking..." : "Continue"}
       </button>
-      {staff ? (
+      {!staff && (
         <p className="text-center text-sm text-slate-500">
-          Customer?{" "}
-          <Link to="/login" className="font-semibold text-brand-600 hover:underline">Go to Personal Banking login</Link>
-        </p>
-      ) : (
-        <p className="text-center text-sm text-slate-500">
-          Don&apos;t have an account?{" "}
+          New here?{" "}
           <button type="button" className="font-semibold text-brand-600 hover:underline" onClick={() => onNotice("register")}>
             Register Now
           </button>
@@ -167,6 +305,48 @@ function RegisterForm({ onDone, onBack }) {
   );
 }
 
+function ShieldIcon({ className = "h-6 w-6" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+function StaffPanel() {
+  return (
+    <div className="hidden lg:block">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/25">
+        <ShieldIcon className="h-8 w-8" />
+      </span>
+      <h1 className="mt-5 text-4xl font-bold leading-tight xl:text-5xl">Staff Portal</h1>
+      <p className="mt-3 max-w-md text-brand-100">
+        Sign in to serve our customers. Every action you take is recorded for the bank&apos;s audit trail.
+      </p>
+      <div className="mt-8 grid max-w-xl gap-4 xl:grid-cols-2">
+        {STAFF_ROLES.map((role) => (
+          <div key={role.title} className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/20 backdrop-blur">
+            <p className="text-sm font-semibold uppercase tracking-widest text-brand-200">{role.title}</p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {role.points.map((p) => (
+                <li key={p} className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-white/20 text-[10px]">&#10003;</span>
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <p className="mt-6 flex max-w-md items-start gap-2 text-sm text-brand-100">
+        <ShieldIcon className="mt-0.5 h-4 w-4 flex-none" />
+        Never share your staff password or OTP with anyone, including colleagues.
+      </p>
+    </div>
+  );
+}
+
 export default function AuthPage() {
   const { user, checking } = useAuth();
   const [params] = useSearchParams();
@@ -179,7 +359,13 @@ export default function AuthPage() {
   return (
     <div className="min-h-dvh bg-slate-50 lg:flex lg:bg-white">
       {/* Mobile: compact header. Desktop: full welcome panel on the left. */}
-      <section className="bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500 px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16">
+      <section
+        className={`px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16 ${
+          staff
+            ? "bg-gradient-to-br from-slate-900 via-brand-900 to-brand-700"
+            : "bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500"
+        }`}
+      >
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg font-bold text-brand-700 lg:h-11 lg:w-11 lg:text-xl">
@@ -193,46 +379,35 @@ export default function AuthPage() {
         </div>
 
         <div className="mt-6 lg:my-0 lg:mt-0">
-          <p className="hidden text-lg text-brand-100 lg:block">Hello!</p>
-          <h1 className="text-2xl font-bold leading-tight sm:text-3xl lg:mt-1 lg:text-5xl">
-            <span className="lg:hidden">
-              {staff ? "Staff login" : mode === "login" ? "Welcome back" : "Open your account"}
-            </span>
-            <span className="hidden lg:inline">Welcome to the world of Konark Trust Bank</span>
+          <h1 className={`text-2xl font-bold leading-tight sm:text-3xl lg:hidden`}>
+            {staff ? "Staff login" : mode === "login" ? "Welcome back" : "Open your account"}
           </h1>
-          <p className="mt-2 max-w-md text-sm text-brand-100 lg:mt-4 lg:text-base">
-            Your money, your trust. Simple and safe digital banking, anytime.
+          <p className="mt-2 max-w-md text-sm text-brand-100 lg:hidden">
+            {staff ? "Sign in to the staff portal." : "Your money, your trust. Simple and safe digital banking, anytime."}
           </p>
 
-          <ul className={`mt-8 hidden space-y-3 text-sm ${staff ? "" : "lg:block"}`}>
-            {FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-white/20 text-xs">
-                  &#10003;
-                </span>
-                {f}
-              </li>
-            ))}
-          </ul>
-
-          <div className={`mt-10 hidden rounded-xl bg-white/10 p-4 text-sm ${staff ? "" : "lg:block"}`}>
-            <p className="font-semibold">Are you a new user?</p>
-            <p className="mt-1 text-brand-100">Choose the option below to open your online banking access.</p>
-            <button
-              onClick={() => {
-                setNotice("");
-                setMode("register");
-              }}
-              className="btn mt-3 bg-white text-brand-700 hover:bg-brand-50"
-            >
-              Register Now
-            </button>
-          </div>
+          {staff ? (
+            <StaffPanel />
+          ) : (
+            <div className="hidden lg:block">
+              <p className="text-lg text-brand-100">Hello!</p>
+              <h1 className="mt-1 text-5xl font-bold leading-tight">Welcome to the world of Konark Trust Bank</h1>
+              <p className="mt-4 max-w-md text-brand-100">Your money, your trust. Simple and safe digital banking, anytime.</p>
+              <ul className="mt-8 space-y-3 text-sm">
+                {FEATURES.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-white/20 text-xs">
+                      &#10003;
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
-        <p className="hidden text-xs text-brand-200 lg:block">
-          Demo project &mdash; not a real bank. Please do not enter real personal or financial data.
-        </p>
+        <p className="hidden text-xs text-brand-200 lg:block">&copy; {new Date().getFullYear()} Konark Trust Bank</p>
       </section>
 
       {/* Form card: overlaps the header on mobile */}
@@ -257,9 +432,6 @@ export default function AuthPage() {
             />
           )}
         </div>
-        <p className="mx-auto mt-4 max-w-md text-center text-xs text-slate-400 lg:hidden">
-          Demo project &mdash; not a real bank. Do not enter real personal or financial data.
-        </p>
       </section>
     </div>
   );

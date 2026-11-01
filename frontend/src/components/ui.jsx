@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Children, cloneElement, isValidElement, useEffect } from "react";
 
 export const formatINR = (value) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(Number(value || 0));
@@ -75,9 +75,9 @@ export function Input({ label, error, hint, ...props }) {
 
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {action}
@@ -89,11 +89,11 @@ export function Pagination({ page, count, pageSize = 10, onPage }) {
   const pages = Math.max(1, Math.ceil(count / pageSize));
   if (pages <= 1) return null;
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+    <div className="mt-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
       <span>
         Page {page} of {pages} ({count} records)
       </span>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex">
         <button className="btn-outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
           Previous
         </button>
@@ -113,8 +113,8 @@ export function Modal({ title, onClose, children }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
+      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-xl sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="text-2xl leading-none text-slate-400 hover:text-slate-600" aria-label="Close">
@@ -131,10 +131,22 @@ export function Empty({ children }) {
   return <div className="py-10 text-center text-sm text-slate-500">{children}</div>;
 }
 
+/**
+ * A normal table on tablets/desktops. On phones (see .rtable in index.css) every row
+ * becomes a small card and each cell shows its column name.
+ */
 export function Table({ headers, children }) {
+  const rows = Children.map(children, (row) => {
+    if (!isValidElement(row)) return row;
+    const cells = Children.map(row.props.children, (cell, i) =>
+      isValidElement(cell) ? cloneElement(cell, { label: headers[i] }) : cell
+    );
+    return cloneElement(row, {}, cells);
+  });
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <table className="rtable w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
             {headers.map((h) => (
@@ -144,12 +156,12 @@ export function Table({ headers, children }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">{children}</tbody>
+        <tbody className="divide-y divide-slate-100">{rows}</tbody>
       </table>
     </div>
   );
 }
 
-export const Td = ({ children, className = "" }) => (
-  <td className={`px-3 py-3 align-middle ${className}`}>{children}</td>
+export const Td = ({ children, className = "", label }) => (
+  <td data-label={label || ""} className={`px-3 py-3 align-middle ${className}`}>{children}</td>
 );

@@ -34,7 +34,7 @@ export default function Requests() {
       <Alert type="success">{notice}</Alert>
 
       <div className="mb-4 mt-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+        <div className="flex w-full gap-1 rounded-lg bg-slate-100 p-1 sm:w-auto">
           {TABS.map((t) => (
             <button
               key={t.label}
@@ -42,7 +42,7 @@ export default function Requests() {
                 setStatus(t.key);
                 setPage(1);
               }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium sm:flex-none ${
                 status === t.key ? "bg-white text-brand-700 shadow-sm" : "text-slate-600"
               }`}
             >
@@ -51,14 +51,14 @@ export default function Requests() {
           ))}
         </div>
         <form
-          className="flex gap-2"
+          className="flex w-full gap-2 sm:w-auto"
           onSubmit={(e) => {
             e.preventDefault();
             setPage(1);
             setSearch(q);
           }}
         >
-          <input className="input w-56" placeholder="Search name, username, email" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input min-w-0 sm:w-56" placeholder="Search name, username, email" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-outline">Search</button>
         </form>
       </div>
