@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage, fieldErrors } from "../../api";
+import Icon from "../../components/icons.jsx";
 import {
-  Alert, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, SearchBox, Spinner, Table, Td,
+  Alert, Avatar, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, SearchBox, Spinner,
 } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -66,57 +67,75 @@ export default function Requests() {
         placeholder="Search name, username, email"
       />
 
-      <div className="card">
-        <Alert>{error}</Alert>
-        {loading ? (
-          <Spinner />
-        ) : data?.results?.length ? (
-          <>
-            <Table headers={["Applicant", "Contact", "Requested", "Status", ""]}>
-              {data.results.map((r) => (
-                <tr key={r.id}>
-                  <Td>
-                    <p className="font-medium">{r.full_name}</p>
-                    <p className="text-xs text-slate-500">@{r.username}</p>
-                  </Td>
-                  <Td>
-                    <p>{r.email}</p>
-                    <p className="text-xs text-slate-500">{r.phone}</p>
-                    <p className="text-xs text-slate-500">DOB: {formatDay(r.date_of_birth)}</p>
-                  </Td>
-                  <Td className="whitespace-nowrap">{formatDate(r.created_at)}</Td>
-                  <Td>
-                    <Badge kind={r.status} />
-                    {r.status === "approved" && r.account_number && (
-                      <p className="mt-1 font-mono text-xs text-slate-500">{r.account_number}</p>
-                    )}
-                    {r.status === "rejected" && r.rejection_reason && (
-                      <p className="mt-1 text-xs text-slate-500">{r.rejection_reason}</p>
-                    )}
-                  </Td>
-                  <Td className="whitespace-nowrap text-right">
+      <Alert>{error}</Alert>
+      {loading ? (
+        <Spinner />
+      ) : data?.results?.length ? (
+        <>
+          <ul className="space-y-3">
+            {data.results.map((r) => (
+              <li key={r.id} className="card p-0 sm:p-0">
+                <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-3.5">
+                    <Avatar name={r.full_name} className="h-11 w-11 text-base" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-extrabold text-slate-900">{r.full_name}</p>
+                        <Badge kind={r.status} />
+                      </div>
+                      <p className="text-sm text-slate-500">@{r.username}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">Requested {formatDate(r.created_at)}</p>
+                    </div>
+                  </div>
+                  <dl className="grid gap-x-8 gap-y-2 rounded-xl bg-slate-50 p-3.5 text-sm sm:grid-cols-3 lg:min-w-[30rem]">
+                    {[
+                      ["mail", "Email", r.email],
+                      ["phone", "Mobile", r.phone],
+                      ["cake", "Date of birth", formatDay(r.date_of_birth)],
+                    ].map(([icon, label, value]) => (
+                      <div key={label} className="flex items-start gap-2 min-w-0">
+                        <Icon name={icon} className="mt-0.5 h-4 w-4 text-slate-400" />
+                        <div className="min-w-0">
+                          <dt className="text-xs text-slate-500">{label}</dt>
+                          <dd className="break-words font-semibold text-slate-800">{value}</dd>
+                        </div>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                {(r.status === "approved" && r.account_number) || (r.status === "rejected" && r.rejection_reason) || r.status !== "approved" ? (
+                  <div className="flex flex-col gap-3 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <p className="text-sm text-slate-600">
+                      {r.status === "approved" && r.account_number && (
+                        <>Account opened: <span className="num font-mono font-semibold">{r.account_number}</span></>
+                      )}
+                      {r.status === "rejected" && r.rejection_reason && (
+                        <>Reason: {r.rejection_reason}</>
+                      )}
+                    </p>
                     {r.status !== "approved" && (
-                      <div className="flex justify-end gap-2">
-                        <button className="btn-primary px-3 py-1.5" onClick={() => setDialog({ type: "approve", request: r })}>
+                      <div className="grid grid-cols-2 gap-2 sm:flex">
+                        <button className="btn-primary px-4 py-2 text-sm" onClick={() => setDialog({ type: "approve", request: r })}>
                           {r.status === "rejected" ? "Approve again" : "Approve"}
                         </button>
                         {r.status === "pending" && (
-                          <button className="btn-outline px-3 py-1.5" onClick={() => setDialog({ type: "reject", request: r })}>
+                          <button className="chip-red px-4 py-2 text-sm" onClick={() => setDialog({ type: "reject", request: r })}>
                             Reject
                           </button>
                         )}
                       </div>
                     )}
-                  </Td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination page={page} count={data.count} onPage={setPage} />
-          </>
-        ) : (
-          !error && <Empty>No requests found.</Empty>
-        )}
-      </div>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <Pagination page={page} count={data.count} onPage={setPage} />
+        </>
+      ) : (
+        !error && <div className="card"><Empty>{status === "pending" ? "No pending requests. New registrations will appear here." : "No requests found."}</Empty></div>
+      )}
 
       {dialog && (
         <ReviewDialog

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
-import { Alert, Field, formatDate, formatINR, Input, PageHeader } from "../../components/ui.jsx";
+import { Alert, Field, formatDate, formatINR, Input, PageHeader, PasswordInput } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const EMPTY = { to_account_number: "", amount: "", remark: "", password: "" };
@@ -117,9 +117,8 @@ export default function Transfer() {
             required
           />
           <Input label="Remark (optional)" value={form.remark} onChange={set("remark")} error={errors.remark} maxLength={140} />
-          <Input
+          <PasswordInput
             label="Confirm with your password"
-            type="password"
             value={form.password}
             onChange={set("password")}
             error={errors.password}

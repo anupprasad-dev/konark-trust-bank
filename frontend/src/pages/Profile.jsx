@@ -1,6 +1,8 @@
 import { useState } from "react";
 import api, { errorMessage, fieldErrors } from "../api";
-import { Alert, Badge, formatDay, Input, PageHeader, Spinner } from "../components/ui.jsx";
+import { WheelMark } from "../components/Brand.jsx";
+import Icon from "../components/icons.jsx";
+import { Alert, Avatar, formatDay, PageHeader, PasswordInput, Spinner } from "../components/ui.jsx";
 import { useApi } from "../hooks";
 
 const BLANK = { old_password: "", new_password: "", confirm_password: "" };
@@ -39,58 +41,64 @@ export default function Profile() {
   if (error) return <Alert>{error}</Alert>;
 
   const rows = [
-    ["Full name", data.full_name || "-"],
-    ["Username", `@${data.username}`],
-    ["Email", data.email || "-"],
-    ["Mobile number", data.phone || "-"],
-    ["Date of birth", formatDay(data.date_of_birth)],
+    ["at", "Username", `@${data.username}`],
+    ["mail", "Email", data.email || "-"],
+    ["phone", "Mobile number", data.phone || "-"],
+    ["cake", "Date of birth", formatDay(data.date_of_birth)],
   ];
-  if (data.account_number) rows.push(["Account number", data.account_number]);
+  if (data.account_number) rows.push(["card", "Account number", data.account_number]);
 
   return (
     <>
-      <PageHeader title="My Profile" subtitle="Your details and password." />
+      <PageHeader title="My profile" subtitle="Your details and password." />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="card">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-700">
-              {(data.full_name || data.username).charAt(0).toUpperCase()}
-            </span>
-            <div>
-              <p className="font-semibold text-slate-900">{data.full_name || data.username}</p>
-              <Badge kind="transfer">{data.role}</Badge>
+      <div className="grid gap-5 lg:grid-cols-5">
+        <section className="card overflow-hidden p-0 sm:p-0 lg:col-span-3">
+          <div className="relative flex items-center gap-4 bg-gradient-to-br from-brand-800 to-brand-600 px-5 py-6 text-white sm:px-7">
+            <WheelMark className="pointer-events-none absolute -right-8 -top-10 h-44 w-44 text-white/10" hub={false} />
+            <Avatar name={data.full_name || data.username} className="relative h-16 w-16 bg-white text-2xl text-brand-700" />
+            <div className="relative min-w-0">
+              <p className="truncate text-xl font-extrabold">{data.full_name || data.username}</p>
+              <span className="mt-1 inline-block rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold capitalize">
+                {data.role}
+              </span>
             </div>
           </div>
-          <dl className="divide-y divide-slate-100 text-sm">
-            {rows.map(([label, value]) => (
-              <div key={label} className="flex justify-between gap-4 py-2.5">
-                <dt className="text-slate-500">{label}</dt>
-                <dd className="break-all text-right font-medium text-slate-800">{value}</dd>
+          <dl className="divide-y divide-slate-100 px-5 text-sm sm:px-7">
+            {rows.map(([icon, label, value]) => (
+              <div key={label} className="flex items-center gap-3.5 py-3.5">
+                <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                  <Icon name={icon} className="h-4 w-4" />
+                </span>
+                <dt className="w-32 flex-none text-slate-500">{label}</dt>
+                <dd className="min-w-0 flex-1 break-all text-right font-semibold text-slate-800 sm:text-left">{value}</dd>
               </div>
             ))}
           </dl>
-          <p className="mt-4 text-xs text-slate-400">
+          <p className="border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-xs text-slate-500 sm:px-7">
             To change your name, email, mobile number or date of birth, please contact the bank.
           </p>
-        </div>
+        </section>
 
-        <form onSubmit={submit} className="card space-y-4">
-          <h2 className="text-base font-semibold text-slate-900">Change password</h2>
+        <form onSubmit={submit} className="card h-fit space-y-4 lg:col-span-2">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <Icon name="lock" className="h-5 w-5" />
+            </span>
+            <h2 className="text-base font-extrabold text-slate-900">Change password</h2>
+          </div>
           <Alert type="success">{message}</Alert>
           <Alert>{failure}</Alert>
-          <Input
+          <PasswordInput
             label="Current password"
-            type="password"
             value={form.old_password}
             onChange={set("old_password")}
             error={errors.old_password}
             autoComplete="current-password"
             required
           />
-          <Input
+          <PasswordInput
             label="New password"
-            type="password"
             value={form.new_password}
             onChange={set("new_password")}
             error={errors.new_password}
@@ -98,9 +106,8 @@ export default function Profile() {
             autoComplete="new-password"
             required
           />
-          <Input
+          <PasswordInput
             label="Confirm new password"
-            type="password"
             value={form.confirm_password}
             onChange={set("confirm_password")}
             error={errors.confirm_password}

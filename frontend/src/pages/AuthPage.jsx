@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
 import BrandLogo from "../components/Brand.jsx";
-import { Alert, Input } from "../components/ui.jsx";
+import Icon from "../components/icons.jsx";
+import { Alert, Input, PasswordInput } from "../components/ui.jsx";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
 const FEATURES = [
@@ -53,34 +54,64 @@ function LoginForm({ onNotice, notice, staff }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">{staff ? "Staff Login" : "Login to your account"}</h2>
-        {staff && <p className="mt-1 text-sm text-slate-500">For bank employees and administrators.</p>}
-      </div>
+    <form onSubmit={submit} className="space-y-5">
+      <FormHeading
+        icon={staff ? "shield" : "user"}
+        tone={staff ? "sun" : "brand"}
+        title={staff ? "Staff login" : "Personal banking login"}
+        text={staff ? "For bank employees and administrators." : "Welcome back. Log in to see your account."}
+      />
       <Alert type="success">{notice}</Alert>
       <Alert>{error}</Alert>
-      <Input label="Username" value={form.username} onChange={set("username")} autoComplete="username" autoCapitalize="none" required />
       <Input
+        label="Username"
+        icon="at"
+        value={form.username}
+        onChange={set("username")}
+        autoComplete="username"
+        autoCapitalize="none"
+        required
+      />
+      <PasswordInput
         label="Password"
-        type="password"
         value={form.password}
         onChange={set("password")}
         autoComplete="current-password"
         required
       />
-      <button className="btn-primary w-full" disabled={busy}>
+      <button className="btn-primary w-full py-3 text-base sm:py-3 sm:text-base" disabled={busy}>
         {busy ? "Logging in..." : "Login"}
       </button>
-      {!staff && (
-        <p className="text-center text-sm text-slate-500">
-          New here?{" "}
-          <button type="button" className="font-semibold text-brand-600 hover:underline" onClick={() => onNotice("register")}>
-            Register Now
+      {staff ? (
+        <p className="flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-3 text-xs text-slate-500">
+          <Icon name="shield" className="mt-0.5 h-4 w-4 text-slate-400" />
+          Staff activity is recorded. Log out when you leave your desk.
+        </p>
+      ) : (
+        <p className="border-t border-slate-100 pt-4 text-center text-sm text-slate-500">
+          New to Konark Trust Bank?{" "}
+          <button type="button" className="font-bold text-brand-600 hover:underline" onClick={() => onNotice("register")}>
+            Register now
           </button>
         </p>
       )}
     </form>
+  );
+}
+
+/** Round icon + title + one line, the same on every form of the login page. */
+function FormHeading({ icon, tone = "brand", title, text }) {
+  const tones = { brand: "bg-brand-50 text-brand-600", sun: "bg-amber-50 text-amber-600" };
+  return (
+    <div className="flex items-center gap-3.5">
+      <span className={`flex h-12 w-12 flex-none items-center justify-center rounded-2xl ${tones[tone]}`}>
+        <Icon name={icon} className="h-6 w-6" />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-xl font-extrabold tracking-tight text-slate-900">{title}</h2>
+        {text && <p className="text-sm text-slate-500">{text}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -116,57 +147,62 @@ function RegisterForm({ onDone, onBack }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      <h2 className="text-xl font-bold text-slate-900">Register as a new customer</h2>
-      <p className="text-sm text-slate-500">
-        A bank employee will review your request. You can log in after it is approved.
-      </p>
+    <form onSubmit={submit} className="space-y-4">
+      <FormHeading
+        icon="user"
+        title="Open an account"
+        text="A bank employee reviews your request. You can log in once it is approved."
+      />
       <Alert>{error}</Alert>
-      <Input label="Full name" value={form.full_name} onChange={set("full_name")} error={errors.full_name} required />
-      <div className="grid gap-3 sm:grid-cols-2">
+      <Input label="Full name" icon="user" value={form.full_name} onChange={set("full_name")} error={errors.full_name} autoComplete="name" required />
+      <div className="grid gap-4 sm:grid-cols-2">
         <Input
           label="Username"
+          icon="at"
           value={form.username}
           onChange={set("username")}
           error={errors.username}
           hint="4-30 letters, numbers or _"
+          autoCapitalize="none"
           required
         />
         <Input
           label="Mobile number"
+          icon="phone"
           value={form.phone}
           onChange={set("phone")}
           error={errors.phone}
           inputMode="numeric"
           maxLength={10}
+          autoComplete="tel-national"
           required
         />
       </div>
-      <Input label="Email" type="email" value={form.email} onChange={set("email")} error={errors.email} required />
-      <Input
-        label="Date of birth"
-        type="date"
-        value={form.date_of_birth}
-        max={new Date().toISOString().slice(0, 10)}
-        onChange={set("date_of_birth")}
-        error={errors.date_of_birth}
-        autoComplete="bday"
-        required
-      />
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input label="Email" icon="mail" type="email" value={form.email} onChange={set("email")} error={errors.email} autoComplete="email" required />
         <Input
+          label="Date of birth"
+          type="date"
+          value={form.date_of_birth}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={set("date_of_birth")}
+          error={errors.date_of_birth}
+          autoComplete="bday"
+          required
+        />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PasswordInput
           label="Password"
-          type="password"
           value={form.password}
           onChange={set("password")}
           error={errors.password}
-          hint="Minimum 8 characters"
+          hint="At least 8 characters"
           autoComplete="new-password"
           required
         />
-        <Input
+        <PasswordInput
           label="Confirm password"
-          type="password"
           value={form.confirm}
           onChange={set("confirm")}
           error={errors.confirm}
@@ -174,12 +210,12 @@ function RegisterForm({ onDone, onBack }) {
           required
         />
       </div>
-      <button className="btn-primary w-full" disabled={busy}>
+      <button className="btn-primary w-full py-3 text-base sm:py-3 sm:text-base" disabled={busy}>
         {busy ? "Submitting..." : "Submit registration request"}
       </button>
-      <p className="text-center text-sm text-slate-500">
+      <p className="border-t border-slate-100 pt-4 text-center text-sm text-slate-500">
         Already registered?{" "}
-        <button type="button" className="font-semibold text-brand-600 hover:underline" onClick={onBack}>
+        <button type="button" className="font-bold text-brand-600 hover:underline" onClick={onBack}>
           Back to login
         </button>
       </p>
@@ -289,7 +325,7 @@ export default function AuthPage() {
 
       {/* Form card: overlaps the header on mobile */}
       <section className="-mt-10 px-4 pb-8 lg:mt-0 lg:flex lg:w-1/2 lg:items-center lg:justify-center lg:px-6 lg:py-10">
-        <div className="card mx-auto w-full max-w-md p-5 shadow-lg sm:p-7 lg:shadow-sm">
+        <div className={`card mx-auto w-full p-5 shadow-lg sm:p-8 lg:shadow-sm ${staff || mode === "login" ? "max-w-md" : "max-w-xl"}`}>
           {staff || mode === "login" ? (
             <LoginForm
               staff={staff}

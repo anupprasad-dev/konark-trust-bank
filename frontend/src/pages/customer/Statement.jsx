@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api, { errorMessage } from "../../api";
+import Icon from "../../components/icons.jsx";
 import { Alert, Input, PageHeader } from "../../components/ui.jsx";
 
 const iso = (date) => {
@@ -76,7 +77,8 @@ export default function Statement() {
     <>
       <PageHeader title="Account Statement" subtitle="Download your transactions as a PDF." />
 
-      <form onSubmit={download} className="card max-w-lg space-y-4">
+      <div className="grid gap-5 lg:grid-cols-5">
+      <form onSubmit={download} className="card space-y-5 lg:col-span-3">
         <Alert>{error}</Alert>
         <Alert type="success">{done}</Alert>
 
@@ -103,11 +105,20 @@ export default function Statement() {
         <button className="btn-primary w-full" disabled={busy}>
           {busy ? "Preparing PDF..." : "Download statement (PDF)"}
         </button>
-        <p className="text-xs text-slate-500">
-          The statement lists every debit and credit with a running balance for the chosen period.
-          Leave both dates empty for the full history.
-        </p>
       </form>
+
+      <aside className="card h-fit space-y-3 bg-brand-50/60 lg:col-span-2">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-brand-800">
+          <Icon name="statement" className="h-4 w-4" /> What you get
+        </h2>
+        <ul className="space-y-2.5 text-sm text-slate-600">
+          <li>A PDF with every debit and credit in the period you choose.</li>
+          <li>A running balance after each transaction.</li>
+          <li>Cancelled transfers are marked, with the reason.</li>
+          <li>Leave both dates empty to get your full history.</li>
+        </ul>
+      </aside>
+      </div>
     </>
   );
 }

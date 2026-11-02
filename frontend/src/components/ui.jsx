@@ -1,4 +1,4 @@
-import { Children, cloneElement, isValidElement, useEffect } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useState } from "react";
 import Icon from "./icons.jsx";
 
 export const formatINR = (value) =>
@@ -80,10 +80,34 @@ export function Field({ label, error, hint, children }) {
   );
 }
 
-export function Input({ label, error, hint, ...props }) {
+export function Input({ label, error, hint, icon, ...props }) {
   return (
     <Field label={label} error={error} hint={hint}>
-      <input className={`input ${error ? "border-red-400" : ""}`} {...props} />
+      <div className="relative">
+        {icon && <Icon name={icon} className="pointer-events-none absolute left-3.5 top-1/2 h-[1.1rem] w-[1.1rem] -translate-y-1/2 text-slate-400" />}
+        <input className={`input ${icon ? "pl-10" : ""} ${error ? "border-red-400" : ""}`} {...props} />
+      </div>
+    </Field>
+  );
+}
+
+/** Password box with a show / hide button. */
+export function PasswordInput({ label, error, hint, ...props }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <Field label={label} error={error} hint={hint}>
+      <div className="relative">
+        <Icon name="lock" className="pointer-events-none absolute left-3.5 top-1/2 h-[1.1rem] w-[1.1rem] -translate-y-1/2 text-slate-400" />
+        <input type={shown ? "text" : "password"} className={`input pl-10 pr-11 ${error ? "border-red-400" : ""}`} {...props} />
+        <button
+          type="button"
+          onClick={() => setShown(!shown)}
+          className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          aria-label={shown ? "Hide password" : "Show password"}
+        >
+          <Icon name={shown ? "eyeOff" : "eye"} className="h-[1.1rem] w-[1.1rem]" />
+        </button>
+      </div>
     </Field>
   );
 }

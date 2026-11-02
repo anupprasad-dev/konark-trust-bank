@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
-  Alert, Badge, DirectionIcon, Empty, Field, formatDate, formatINR, Modal, PageHeader, Pagination, Spinner, Table, Td,
+  Alert, Avatar, Badge, DirectionIcon, Empty, Field, formatDate, formatINR, Modal, PageHeader, Pagination, Spinner, Table, Td,
 } from "../../components/ui.jsx";
+import HistoryFilters from "../../components/HistoryFilters.jsx";
 import { useApi } from "../../hooks";
 
 const BLANK = { q: "", type: "", date_from: "", date_to: "" };
@@ -23,12 +24,6 @@ export default function AccountHistory() {
   const params = { page, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) };
   const history = useApi(`/employee/accounts/${id}/transactions/`, params);
 
-  const set = (key) => (e) => setDraft({ ...draft, [key]: e.target.value });
-  const apply = (e) => {
-    e.preventDefault();
-    setPage(1);
-    setFilters(draft);
-  };
   const reset = () => {
     setDraft(BLANK);
     setFilters(BLANK);
@@ -55,39 +50,33 @@ export default function AccountHistory() {
       />
       <Alert type="success">{notice}</Alert>
 
-      <div className="card mb-4 mt-3 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="text-slate-500">Account number</p>
-          <p className="font-mono font-semibold">{acc.account_number}</p>
+      <div className="card mb-5 mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3.5">
+          <Avatar name={acc.holder_name} className="h-12 w-12 text-lg" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-extrabold text-slate-900">{acc.holder_name}</p>
+              <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
+            </div>
+            <p className="text-sm text-slate-500">@{acc.username}</p>
+            <p className="num font-mono text-sm text-slate-600">{acc.account_number}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-slate-500">Current balance</p>
-          <p className="text-lg font-bold text-brand-700">{formatINR(acc.balance)}</p>
-        </div>
-        <div>
-          <p className="text-slate-500">Username</p>
-          <p className="font-medium">@{acc.username}</p>
-        </div>
-        <div>
-          <p className="text-slate-500">Status</p>
-          <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
+        <div className="rounded-2xl bg-brand-50 px-5 py-3 sm:text-right">
+          <p className="text-xs text-slate-500">Current balance</p>
+          <p className="num text-2xl font-extrabold text-brand-700">{formatINR(acc.balance)}</p>
         </div>
       </div>
 
-      <form onSubmit={apply} className="card mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <input className="input lg:col-span-2" placeholder="Search name, remark, ref, account" value={draft.q} onChange={set("q")} />
-        <select className="input" value={draft.type} onChange={set("type")}>
-          <option value="">All types</option>
-          <option value="credit">Credit (money in)</option>
-          <option value="debit">Debit (money out)</option>
-        </select>
-        <input className="input" type="date" value={draft.date_from} onChange={set("date_from")} aria-label="From date" />
-        <input className="input" type="date" value={draft.date_to} onChange={set("date_to")} aria-label="To date" />
-        <div className="flex gap-2 sm:col-span-2 lg:col-span-5">
-          <button className="btn-primary">Apply filters</button>
-          <button type="button" className="btn-outline" onClick={reset}>Reset</button>
-        </div>
-      </form>
+      <HistoryFilters
+        draft={draft}
+        setDraft={setDraft}
+        onApply={(next) => {
+          setPage(1);
+          setFilters(next);
+        }}
+        onReset={reset}
+      />
 
       <div className="card">
         <Alert>{history.error}</Alert>

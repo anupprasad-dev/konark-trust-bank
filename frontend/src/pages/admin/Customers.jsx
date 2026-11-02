@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api, { errorMessage } from "../../api";
-import { Alert, Badge, Empty, formatDate, formatDay, formatINR, PageHeader, Pagination, SearchBox, Spinner, Table, Td } from "../../components/ui.jsx";
+import { Alert, Avatar, Badge, Empty, formatDate, formatDay, formatINR, PageHeader, Pagination, SearchBox, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 export default function Customers() {
@@ -46,38 +46,54 @@ export default function Customers() {
         placeholder="Search name, username, email, account"
       />
 
-      <div className="card">
-        <Alert>{error}</Alert>
-        {loading ? (
-          <Spinner />
-        ) : data?.results?.length ? (
-          <>
-            <Table headers={["Customer", "Account", "Balance", "Joined", "Status", ""]}>
-              {data.results.map((c) => (
-                <tr key={c.id}>
-                  <Td>
-                    <p className="font-medium">{c.full_name}</p>
-                    <p className="text-xs text-slate-500">@{c.username} &middot; {c.email}</p>
+      <Alert>{error}</Alert>
+      {loading ? (
+        <Spinner />
+      ) : data?.results?.length ? (
+        <>
+          <p className="mb-3 text-sm text-slate-500">{data.count} customer{data.count === 1 ? "" : "s"}</p>
+          <ul className="space-y-3">
+            {data.results.map((c) => (
+              <li key={c.id} className="card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-start gap-3.5">
+                  <Avatar name={c.full_name || c.username} className="h-11 w-11 text-base" />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-extrabold text-slate-900">{c.full_name || c.username}</p>
+                      <Badge kind={c.is_active ? "active" : "blocked"}>{c.is_active ? "Active" : "Blocked"}</Badge>
+                    </div>
+                    <p className="text-sm text-slate-500">@{c.username}</p>
+                    <p className="mt-1 break-all text-xs text-slate-500">{c.email}</p>
                     <p className="text-xs text-slate-500">{c.phone} &middot; DOB: {formatDay(c.date_of_birth)}</p>
-                  </Td>
-                  <Td className="font-mono">{c.account_number || "-"}</Td>
-                  <Td className="font-semibold">{c.balance != null ? formatINR(c.balance) : "-"}</Td>
-                  <Td className="whitespace-nowrap">{formatDate(c.date_joined)}</Td>
-                  <Td><Badge kind={c.is_active ? "active" : "blocked"}>{c.is_active ? "Active" : "Blocked"}</Badge></Td>
-                  <Td className="text-right">
-                    <button className="btn-outline px-3 py-1.5" onClick={() => toggle(c)}>
-                      {c.is_active ? "Block" : "Unblock"}
-                    </button>
-                  </Td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination page={page} count={data.count} onPage={setPage} />
-          </>
-        ) : (
-          !error && <Empty>No customers found.</Empty>
-        )}
-      </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-6 rounded-xl bg-slate-50 p-3.5 lg:bg-transparent lg:p-0">
+                  <dl className="grid grid-cols-3 gap-5 text-sm lg:text-right">
+                    <div>
+                      <dt className="text-xs text-slate-500">Account no.</dt>
+                      <dd className="num font-mono text-xs font-semibold text-slate-800 sm:text-sm">{c.account_number || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Balance</dt>
+                      <dd className="num font-extrabold text-brand-700">{c.balance != null ? formatINR(c.balance) : "-"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Joined</dt>
+                      <dd className="text-xs text-slate-700 sm:text-sm">{formatDate(c.date_joined)}</dd>
+                    </div>
+                  </dl>
+                  <button className={c.is_active ? "chip-red" : "chip-green"} onClick={() => toggle(c)}>
+                    {c.is_active ? "Block" : "Unblock"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Pagination page={page} count={data.count} onPage={setPage} />
+        </>
+      ) : (
+        !error && <div className="card"><Empty>No customers found.</Empty></div>
+      )}
     </>
   );
 }
