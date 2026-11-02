@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
+from . import photos
 from .models import CANCEL_WINDOW, Account, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
@@ -112,6 +113,8 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
         full_name=reg.full_name,
         phone=reg.phone,
         date_of_birth=reg.date_of_birth,
+        photo_url=reg.photo_url,
+        photo_public_id=reg.photo_public_id,
         role=Role.CUSTOMER,
         password=reg.password_hash,  # already hashed at registration time
     )
@@ -249,7 +252,9 @@ def delete_customer_account(*, employee, account_id, confirm_username):
             performed_by=employee,
         )
 
+    photo_id = user.photo_public_id
     user.delete()  # cascades to the Account and the user's beneficiaries
+    transaction.on_commit(lambda: photos.delete_photo(photo_id))
     return {"username": user.username, "account_number": number, "paid_out": paid_out}
 
 

@@ -56,7 +56,7 @@ export default function Customers() {
             {data.results.map((c) => (
               <li key={c.id} className="card flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-3.5">
-                  <Avatar name={c.full_name || c.username} className="h-11 w-11 text-base" />
+                  <Avatar name={c.full_name || c.username} src={c.photo} className="h-12 w-12 text-base" />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-extrabold text-slate-900">{c.full_name || c.username}</p>

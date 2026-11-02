@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
 import BrandLogo from "../components/Brand.jsx";
@@ -115,6 +115,9 @@ function FormHeading({ icon, tone = "brand", title, text }) {
   );
 }
 
+const PHOTO_MAX = 1024 * 1024; // 1 MB
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 function RegisterForm({ onDone, onBack }) {
   const [form, setForm] = useState({
     full_name: "", username: "", email: "", phone: "", date_of_birth: "", password: "", confirm: "",
@@ -122,12 +125,43 @@ function RegisterForm({ onDone, onBack }) {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState(null); // the chosen File
+  const [preview, setPreview] = useState("");
+  const [photoProblem, setPhotoProblem] = useState("");
+  const picker = useRef(null);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
+
+  // Checks the file before anything is uploaded: type and size (under 1 MB).
+  const choosePhoto = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets the same file be picked again later
+    if (!file) return;
+    if (!PHOTO_TYPES.includes(file.type)) {
+      setPhotoProblem("Please choose a JPG, PNG or WEBP photo.");
+      return;
+    }
+    if (file.size > PHOTO_MAX) {
+      setPhotoProblem(
+        `This photo is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Please choose a photo smaller than 1 MB. It was not added.`
+      );
+      return;
+    }
+    setPhotoProblem("");
+    setPhoto(file);
+    setPreview(URL.createObjectURL(file));
+    setErrors((prev) => ({ ...prev, photo: undefined }));
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!photo) {
+      setErrors({ photo: "Please add your photo." });
+      return;
+    }
     if (form.password !== form.confirm) {
       setErrors({ confirm: "Passwords do not match." });
       return;
@@ -135,16 +169,21 @@ function RegisterForm({ onDone, onBack }) {
     setErrors({});
     setBusy(true);
     try {
-      const { confirm, ...payload } = form;
+      const { confirm, ...fields } = form;
+      const payload = new FormData();
+      Object.entries(fields).forEach(([key, value]) => payload.append(key, value));
+      payload.append("photo", photo);
       const { data } = await api.post("/auth/register/", payload);
       onDone(data.detail);
     } catch (err) {
       const fields = fieldErrors(err);
       setErrors(fields);
-      if (!Object.keys(fields).some((k) => k in form)) setError(errorMessage(err));
+      if (!Object.keys(fields).some((k) => k in form || k === "photo")) setError(errorMessage(err));
       setBusy(false);
     }
   };
+
+  const photoError = photoProblem || errors.photo;
 
   return (
     <form onSubmit={submit} className="space-y-4">
@@ -154,6 +193,39 @@ function RegisterForm({ onDone, onBack }) {
         text="A bank employee reviews your request. You can log in once it is approved."
       />
       <Alert>{error}</Alert>
+
+      <div className="flex items-center gap-4 rounded-2xl bg-slate-50 p-3.5">
+        <button
+          type="button"
+          onClick={() => picker.current?.click()}
+          className={`group relative flex h-24 w-24 flex-none items-center justify-center overflow-hidden rounded-full border-2 border-dashed bg-white ${
+            photoError ? "border-red-400" : preview ? "border-transparent" : "border-slate-300 hover:border-brand-400"
+          }`}
+          aria-label={preview ? "Change photo" : "Add your photo"}
+        >
+          {preview ? (
+            <img src={preview} alt="Your photo" className="h-full w-full object-cover object-top" />
+          ) : (
+            <Icon name="user" className="h-9 w-9 text-slate-300 group-hover:text-brand-400" />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-800">Your photo</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            A clear photo of your face, looking at the camera. JPG, PNG or WEBP, under 1 MB.
+          </p>
+          <button type="button" className="chip-brand mt-2" onClick={() => picker.current?.click()}>
+            {preview ? "Change photo" : "Choose photo"}
+          </button>
+          <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={choosePhoto} />
+        </div>
+      </div>
+      {photoError && (
+        <p className="-mt-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          <Icon name="alert" className="mt-0.5 h-4 w-4 flex-none" />
+          {photoError}
+        </p>
+      )}
       <Input label="Full name" icon="user" value={form.full_name} onChange={set("full_name")} error={errors.full_name} autoComplete="name" required />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input

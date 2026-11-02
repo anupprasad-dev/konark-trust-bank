@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
+import { Avatar } from "./ui.jsx";
 
 /** Shared page frame (sidebar on desktop, top bar on phones) for all three dashboards. */
 export default function Layout({ roleLabel, links, profileTo }) {
@@ -61,7 +62,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
                   }`
                 }
               >
-                <Icon name="user" />
+                {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" />}
               </NavLink>
             )}
             <div className="min-w-0">
@@ -92,7 +93,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
                   `flex h-9 w-9 items-center justify-center rounded-full ${isActive ? "bg-sun-500 text-brand-900" : "bg-white/10"}`
                 }
               >
-                <Icon name="user" className="h-5 w-5" />
+                {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" className="h-5 w-5" />}
               </NavLink>
             )}
             <button onClick={onLogout} aria-label="Logout" className="flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-semibold">

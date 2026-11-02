@@ -1,13 +1,30 @@
+import io
+import os
+import tempfile
 from decimal import Decimal
 
 from django.contrib.auth.hashers import make_password
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
 from rest_framework.test import APITestCase
 
 from .models import Account, RegistrationRequest, Role, Transaction, User
 from .services import generate_account_number
 
 PASSWORD = "Str0ng#Pass99"
+TEST_MEDIA = tempfile.mkdtemp(prefix="ktb_test_media_")
+
+
+def make_photo(side=300, fmt="JPEG", name="me.jpg", pad_to=None):
+    """A real in-memory image. `pad_to` makes the file at least that many bytes (for size tests)."""
+    buffer = io.BytesIO()
+    Image.effect_noise((side, side), 80).convert("RGB").save(buffer, fmt)
+    data = buffer.getvalue()
+    if pad_to and len(data) < pad_to:
+        data += b"\0" * (pad_to - len(data))
+    return SimpleUploadedFile(name, data, content_type="image/jpeg")
 
 
 def make_user(username, role, full_name="", with_account=False, balance="0"):
@@ -23,6 +40,7 @@ def make_user(username, role, full_name="", with_account=False, balance="0"):
     return user
 
 
+@override_settings(MEDIA_ROOT=TEST_MEDIA, CLOUDINARY_URL="")  # photos go to a temp folder
 class BankTestBase(APITestCase):
     def setUp(self):
         cache.clear()  # reset login throttling between tests
@@ -46,7 +64,8 @@ class RegistrationFlowTests(BankTestBase):
             "phone": "9123456780", "date_of_birth": "1995-04-12", "password": PASSWORD,
         }
         payload.update(overrides)
-        return self.client.post("/api/auth/register/", payload, format="json")
+        payload.setdefault("photo", make_photo())
+        return self.client.post("/api/auth/register/", payload, format="multipart")
 
     def test_full_flow_register_approve_login(self):
         employee = make_user("emp1", Role.EMPLOYEE)
@@ -878,7 +897,8 @@ class RegistrationDobTests(BankTestBase):
             "phone": "9123456780", "date_of_birth": "1995-04-12", "password": PASSWORD,
         }
         payload.update(overrides)
-        return self.client.post("/api/auth/register/", payload, format="json")
+        payload.setdefault("photo", make_photo())
+        return self.client.post("/api/auth/register/", payload, format="multipart")
 
     def test_date_of_birth_is_required(self):
         payload = {
@@ -991,3 +1011,90 @@ class DateOfBirthShownTests(BankTestBase):
         self.login("boss")
         row = self.client.get("/api/admin-panel/customers/").data["results"][0]
         self.assertEqual(row["date_of_birth"], "1992-03-15")
+
+
+class PhotoTests(BankTestBase):
+    def register(self, **overrides):
+        payload = {
+            "full_name": "Rahul Sahoo", "username": "rahul_s", "email": "rahul@example.com",
+            "phone": "9123456780", "date_of_birth": "1995-04-12", "password": PASSWORD,
+            "photo": make_photo(),
+        }
+        payload.update(overrides)
+        payload = {k: v for k, v in payload.items() if v is not None}
+        return self.client.post("/api/auth/register/", payload, format="multipart")
+
+    def test_photo_is_required(self):
+        response = self.register(photo=None)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("photo", response.data)
+        self.assertEqual(RegistrationRequest.objects.count(), 0)
+
+    def test_photo_over_1mb_is_refused_with_a_clear_warning(self):
+        response = self.register(photo=make_photo(pad_to=1024 * 1024 + 1))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("smaller than 1 MB", response.data["photo"][0])
+        self.assertEqual(RegistrationRequest.objects.count(), 0)
+
+    def test_a_file_that_is_not_an_image_is_refused(self):
+        fake = SimpleUploadedFile("me.jpg", b"this is not an image", content_type="image/jpeg")
+        response = self.register(photo=fake)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not a valid photo", response.data["photo"][0])
+
+    def test_a_tiny_photo_is_refused(self):
+        response = self.register(photo=make_photo(side=60))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("too small", response.data["photo"][0])
+
+    def test_gif_is_refused(self):
+        buffer = io.BytesIO()
+        Image.new("RGB", (300, 300), "red").save(buffer, "GIF")
+        gif = SimpleUploadedFile("me.gif", buffer.getvalue(), content_type="image/gif")
+        response = self.register(photo=gif)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("JPG, PNG or WEBP", response.data["photo"][0])
+
+    def test_photo_is_saved_and_follows_the_customer(self):
+        make_user("emp1", Role.EMPLOYEE)
+        self.assertEqual(self.register().status_code, 201)
+        reg = RegistrationRequest.objects.get()
+        self.assertTrue(reg.photo_url.startswith("/media/customers/"))
+        self.assertTrue(os.path.isfile(os.path.join(TEST_MEDIA, reg.photo_public_id)))
+
+        self.login("emp1")
+        listing = self.client.get("/api/employee/requests/").data["results"][0]
+        self.assertEqual(listing["photo"], reg.photo_url)  # the employee sees it before approving
+        self.client.post(f"/api/employee/requests/{reg.id}/approve/", {"opening_balance": "0"}, format="json")
+
+        customer = User.objects.get(username="rahul_s")
+        self.assertEqual(customer.photo_url, reg.photo_url)
+        self.logout()
+        self.login("rahul_s")
+        self.assertEqual(self.client.get("/api/auth/me/").data["photo"], reg.photo_url)
+
+    def test_photo_file_is_removed_when_the_account_is_deleted(self):
+        make_user("emp1", Role.EMPLOYEE)
+        self.register()
+        reg = RegistrationRequest.objects.get()
+        self.login("emp1")
+        self.client.post(f"/api/employee/requests/{reg.id}/approve/", {"opening_balance": "0"}, format="json")
+        path = os.path.join(TEST_MEDIA, reg.photo_public_id)
+        self.assertTrue(os.path.isfile(path))
+
+        account = Account.objects.get(user__username="rahul_s")
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/employee/accounts/{account.id}/delete/", {"confirm_username": "rahul_s"}, format="json"
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(os.path.exists(path))
+
+    def test_cloudinary_links_become_face_centred_squares(self):
+        from core.photos import display_url
+        url = "https://res.cloudinary.com/demo/image/upload/v1/konark/customers/abc.jpg"
+        shown = display_url(url, size=300)
+        self.assertIn("/image/upload/c_fill,g_face,w_300,h_300", shown)
+        self.assertTrue(shown.endswith("/v1/konark/customers/abc.jpg"))
+        self.assertEqual(display_url(""), "")
+        self.assertEqual(display_url("/media/customers/a.jpg"), "/media/customers/a.jpg")

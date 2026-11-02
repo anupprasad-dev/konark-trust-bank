@@ -9,6 +9,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from . import photos
 from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
@@ -58,9 +59,14 @@ def _clean_dob(value):
 
 # ------------------------------------------------------------------ users / auth
 class UserSerializer(serializers.ModelSerializer):
+    photo = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "full_name", "email", "phone", "date_of_birth", "role", "is_active"]
+        fields = ["id", "username", "full_name", "email", "phone", "date_of_birth", "photo", "role", "is_active"]
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.photo_url)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -113,15 +119,26 @@ class LoginSerializer(TokenObtainPairSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
+    photo = serializers.FileField(
+        write_only=True, allow_empty_file=True,
+        error_messages={"required": "Please add your photo.", "invalid": "Please add your photo."},
+    )
 
     class Meta:
         model = RegistrationRequest
-        fields = ["id", "full_name", "username", "email", "phone", "date_of_birth", "password"]
+        fields = ["id", "full_name", "username", "email", "phone", "date_of_birth", "photo", "password"]
         read_only_fields = ["id"]
         extra_kwargs = {"date_of_birth": {"required": True, "allow_null": False}}
 
     def validate_date_of_birth(self, value):
         return _clean_dob(value)
+
+    def validate_photo(self, value):
+        try:
+            photos.validate_photo(value)
+        except photos.PhotoError as exc:
+            raise serializers.ValidationError(str(exc))
+        return value
 
     def validate_full_name(self, value):
         value = value.strip()
@@ -158,9 +175,16 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return RegistrationRequest.objects.create(
-            password_hash=make_password(password), **validated_data
-        )
+        photo = validated_data.pop("photo")
+        url, public_id = photos.store_photo(photo)
+        try:
+            return RegistrationRequest.objects.create(
+                password_hash=make_password(password), photo_url=url, photo_public_id=public_id,
+                **validated_data,
+            )
+        except Exception:
+            photos.delete_photo(public_id)
+            raise
 
 
 class EmployeeCreateSerializer(serializers.ModelSerializer):
@@ -199,14 +223,18 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 class RegistrationRequestSerializer(serializers.ModelSerializer):
     reviewed_by_name = serializers.SerializerMethodField()
     account_number = serializers.SerializerMethodField()
+    photo = serializers.SerializerMethodField()
 
     class Meta:
         model = RegistrationRequest
         fields = [
-            "id", "full_name", "username", "email", "phone", "date_of_birth", "status",
+            "id", "full_name", "username", "email", "phone", "date_of_birth", "photo", "status",
             "rejection_reason", "created_at", "reviewed_at", "reviewed_by_name",
             "account_number",
         ]
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.photo_url)
 
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.display_name if obj.reviewed_by else None
@@ -311,13 +339,17 @@ class AccountSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source="user.email", read_only=True)
     phone = serializers.CharField(source="user.phone", read_only=True)
     date_of_birth = serializers.DateField(source="user.date_of_birth", read_only=True)
+    photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Account
         fields = [
             "id", "account_number", "balance", "is_active", "created_at",
-            "holder_name", "username", "email", "phone", "date_of_birth",
+            "holder_name", "username", "email", "phone", "date_of_birth", "photo",
         ]
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.user.photo_url)
 
 
 # ------------------------------------------------------------------ transactions
@@ -448,13 +480,17 @@ class BeneficiarySerializer(serializers.ModelSerializer):
 class CustomerListSerializer(serializers.ModelSerializer):
     account_number = serializers.SerializerMethodField()
     balance = serializers.SerializerMethodField()
+    photo = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            "id", "username", "full_name", "email", "phone", "date_of_birth", "is_active",
+            "id", "username", "full_name", "email", "phone", "date_of_birth", "photo", "is_active",
             "date_joined", "account_number", "balance",
         ]
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.photo_url)
 
     def get_account_number(self, obj):
         return obj.account.account_number if hasattr(obj, "account") else None

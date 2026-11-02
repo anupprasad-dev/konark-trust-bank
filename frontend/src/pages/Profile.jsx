@@ -56,7 +56,7 @@ export default function Profile() {
         <section className="card overflow-hidden p-0 sm:p-0 lg:col-span-3">
           <div className="relative flex items-center gap-4 bg-gradient-to-br from-brand-800 to-brand-600 px-5 py-6 text-white sm:px-7">
             <WheelMark className="pointer-events-none absolute -right-8 -top-10 h-44 w-44 text-white/10" hub={false} />
-            <Avatar name={data.full_name || data.username} className="relative h-16 w-16 bg-white text-2xl text-brand-700" />
+            <Avatar name={data.full_name || data.username} src={data.photo} className="relative h-24 w-24 bg-white text-3xl text-brand-700 ring-4 ring-white/60" />
             <div className="relative min-w-0">
               <p className="truncate text-xl font-extrabold">{data.full_name || data.username}</p>
               <span className="mt-1 inline-block rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold capitalize">

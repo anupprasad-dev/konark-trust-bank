@@ -17,3 +17,6 @@ dist/
 .vscode/
 .idea/
 .DS_Store
+
+# Local customer photos (production uses Cloudinary)
+backend/media/

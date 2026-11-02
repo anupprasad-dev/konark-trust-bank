@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
-  Alert, Badge, Empty, formatDate, formatDay, formatINR, Input, Modal, PageHeader, Pagination, Spinner,
+  Alert, Avatar, Badge, Empty, formatDate, formatDay, formatINR, Input, Modal, PageHeader, Pagination, Spinner,
 } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -94,9 +94,7 @@ export default function Accounts() {
               <li key={a.id} className="card p-0 sm:p-0">
                 <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-100 text-base font-bold text-brand-700">
-                      {(a.holder_name || a.username).charAt(0).toUpperCase()}
-                    </span>
+                    <Avatar name={a.holder_name || a.username} src={a.photo} className="h-14 w-14 text-lg" />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-semibold text-slate-900">{a.holder_name}</p>

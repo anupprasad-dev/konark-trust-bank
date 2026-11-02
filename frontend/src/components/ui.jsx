@@ -1,4 +1,5 @@
 import { Children, cloneElement, isValidElement, useEffect, useState } from "react";
+import { photoSrc } from "../api";
 import Icon from "./icons.jsx";
 
 export const formatINR = (value) =>
@@ -166,7 +167,19 @@ export function StatCard({ icon, label, value, tone = "brand", hint }) {
 }
 
 /** Round avatar with the first letter of a name. */
-export function Avatar({ name = "", className = "h-10 w-10 text-sm" }) {
+export function Avatar({ name = "", src = "", className = "h-10 w-10 text-sm" }) {
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) {
+    // object-top keeps the face in the circle for tall photos
+    return (
+      <img
+        src={photoSrc(src)}
+        alt={name ? `Photo of ${name}` : "Photo"}
+        onError={() => setBroken(true)}
+        className={`flex-none rounded-full bg-slate-100 object-cover object-top ring-2 ring-white ${className}`}
+      />
+    );
+  }
   return (
     <span className={`flex flex-none items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700 ${className}`}>
       {(name || "?").charAt(0).toUpperCase()}

@@ -110,6 +110,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Customer photos: Cloudinary when CLOUDINARY_URL is set, otherwise the local ./media folder.
+CLOUDINARY_URL = config("CLOUDINARY_URL", default="")
+if CLOUDINARY_URL:
+    import os as _os
+    _os.environ.setdefault("CLOUDINARY_URL", CLOUDINARY_URL)  # the cloudinary package reads it from here
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},

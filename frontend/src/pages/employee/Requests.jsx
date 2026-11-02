@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
-import api, { errorMessage, fieldErrors } from "../../api";
+import api, { errorMessage, fieldErrors, photoSrc } from "../../api";
 import Icon from "../../components/icons.jsx";
 import {
   Alert, Avatar, Badge, Empty, formatDate, formatDay, Input, Modal, PageHeader, Pagination, SearchBox, Spinner,
@@ -21,6 +21,7 @@ export default function Requests() {
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState(null); // { type: "approve" | "reject", request }
   const [notice, setNotice] = useState("");
+  const [viewPhoto, setViewPhoto] = useState(null); // request whose photo is shown large
 
   const { data, loading, error, reload } = useApi("/employee/requests/", {
     page,
@@ -77,7 +78,15 @@ export default function Requests() {
               <li key={r.id} className="card p-0 sm:p-0">
                 <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex min-w-0 items-start gap-3.5">
-                    <Avatar name={r.full_name} className="h-11 w-11 text-base" />
+                    <button
+                      type="button"
+                      className="rounded-full focus-visible:outline-brand-500"
+                      onClick={() => r.photo && setViewPhoto(r)}
+                      aria-label={r.photo ? `Enlarge photo of ${r.full_name}` : undefined}
+                      disabled={!r.photo}
+                    >
+                      <Avatar name={r.full_name} src={r.photo} className="h-14 w-14 text-lg" />
+                    </button>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate font-extrabold text-slate-900">{r.full_name}</p>
@@ -135,6 +144,17 @@ export default function Requests() {
         </>
       ) : (
         !error && <div className="card"><Empty>{status === "pending" ? "No pending requests. New registrations will appear here." : "No requests found."}</Empty></div>
+      )}
+
+      {viewPhoto && (
+        <Modal title={viewPhoto.full_name} onClose={() => setViewPhoto(null)}>
+          <img
+            src={photoSrc(viewPhoto.photo)}
+            alt={`Photo of ${viewPhoto.full_name}`}
+            className="mx-auto max-h-[60dvh] w-full rounded-2xl bg-slate-100 object-contain"
+          />
+          <p className="mt-3 text-center text-xs text-slate-500">Check that the face is clear before you approve.</p>
+        </Modal>
       )}
 
       {dialog && (

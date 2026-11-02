@@ -2,6 +2,17 @@ import axios from "axios";
 
 export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+/** Photo links from Cloudinary are full URLs. Photos saved locally (development) start with "/media". */
+export const photoSrc = (url) => {
+  if (!url) return "";
+  if (!url.startsWith("/")) return url;
+  try {
+    return new URL(API_URL).origin + url;
+  } catch {
+    return url;
+  }
+};
+
 const ACCESS = "ktb_access";
 const REFRESH = "ktb_refresh";
 const USER = "ktb_user";

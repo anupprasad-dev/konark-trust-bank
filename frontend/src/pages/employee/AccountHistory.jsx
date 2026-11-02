@@ -52,7 +52,7 @@ export default function AccountHistory() {
 
       <div className="card mb-5 mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3.5">
-          <Avatar name={acc.holder_name} className="h-12 w-12 text-lg" />
+          <Avatar name={acc.holder_name} src={acc.photo} className="h-14 w-14 text-lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate font-extrabold text-slate-900">{acc.holder_name}</p>
