@@ -13,22 +13,6 @@ export default function History() {
   const params = { page, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) };
   const { data, loading, error } = useApi("/customer/transactions/", params);
 
-  const downloadCsv = () => {
-    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [["Date", "Reference", "Details", "Account", "Type", "Amount", "Status"]].concat(
-      (data?.results || []).map((t) => [
-        t.created_at, t.txn_ref, t.counterparty_name, t.counterparty_account, t.direction,
-        `${t.direction === "CREDIT" ? "" : "-"}${t.amount}`, t.status,
-      ])
-    );
-    const blob = new Blob([rows.map((r) => r.map(esc).join(",")).join("\n")], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "transactions.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
   const reset = () => {
     setDraft(BLANK);
     setFilters(BLANK);
@@ -37,15 +21,7 @@ export default function History() {
 
   return (
     <>
-      <PageHeader
-        title="Transaction History"
-        subtitle="Search and filter all your transactions."
-        action={
-          data?.results?.length ? (
-            <button className="btn-outline text-sm" onClick={downloadCsv}>Download this page (CSV)</button>
-          ) : null
-        }
-      />
+      <PageHeader title="Transaction History" subtitle="Search and filter all your transactions." />
 
       <HistoryFilters
         draft={draft}

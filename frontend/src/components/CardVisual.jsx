@@ -29,6 +29,27 @@ export default function CardVisual({ card, canReveal = true }) {
           issued ? "" : "opacity-80"
         }`}
       >
+        {/* fine line pattern, like the guilloche lines printed on real cards */}
+        <svg className="pointer-events-none absolute inset-0 h-full w-full text-white" aria-hidden="true">
+          <defs>
+            <pattern id={`lines-${card.id}`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(32)">
+              <line x1="0" y1="0" x2="0" y2="7" stroke="currentColor" strokeWidth="0.7" opacity="0.09" />
+            </pattern>
+            <radialGradient id={`fade-${card.id}`} cx="85%" cy="95%" r="75%">
+              <stop offset="0%" stopColor="white" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="white" stopOpacity="0.15" />
+            </radialGradient>
+            <mask id={`mask-${card.id}`}>
+              <rect width="100%" height="100%" fill={`url(#fade-${card.id})`} />
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill={`url(#lines-${card.id})`} mask={`url(#mask-${card.id})`} />
+          <g fill="none" stroke="currentColor" opacity="0.07">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <circle key={i} cx="92%" cy="105%" r={50 + i * 22} strokeWidth="0.8" />
+            ))}
+          </g>
+        </svg>
         <WheelMark className="pointer-events-none absolute -bottom-12 -right-10 h-48 w-48 text-white/10" hub={false} />
         <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-start justify-between">
@@ -47,7 +68,24 @@ export default function CardVisual({ card, canReveal = true }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="h-8 w-11 rounded-md bg-gradient-to-br from-amber-200 to-amber-500 ring-1 ring-black/10" aria-hidden="true" />
+            {/* EMV chip: gold plate with the contact lines */}
+            <svg viewBox="0 0 44 34" className="h-9 w-12 drop-shadow-sm" aria-hidden="true">
+              <defs>
+                <linearGradient id={`gold-${card.id}`} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#fde9a6" />
+                  <stop offset="0.5" stopColor="#e9b948" />
+                  <stop offset="1" stopColor="#c8932a" />
+                </linearGradient>
+              </defs>
+              <rect x="0.5" y="0.5" width="43" height="33" rx="6" fill={`url(#gold-${card.id})`} stroke="#8a6414" strokeOpacity="0.5" />
+              <g fill="none" stroke="#7a5510" strokeOpacity="0.65" strokeWidth="0.9" strokeLinecap="round">
+                <path d="M0.5 12H14a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4H0.5" />
+                <path d="M43.5 12H30a4 4 0 0 0-4 4v2a4 4 0 0 0 4 4h13.5" />
+                <path d="M15 0.5v8M29 0.5v8M15 33.5v-8M29 33.5v-8" />
+                <path d="M18 17h8M22 8.5v17" />
+                <rect x="15" y="8.500" width="14" height="17" rx="3" />
+              </g>
+            </svg>
             {issued && canReveal && (
               <button
                 type="button"
