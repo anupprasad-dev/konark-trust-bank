@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import photos
-from .models import Account, Beneficiary, Card, Feedback, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, Deposit, Feedback, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -568,3 +568,60 @@ class FeedbackSerializer(serializers.ModelSerializer):
         model = Feedback
         fields = ["id", "rating", "comment", "username", "created_at"]
         read_only_fields = ["id", "username", "created_at"]
+
+
+# ------------------------------------------------------------------ deposits (FD / RD)
+class OpenDepositSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=Deposit.Kind.choices)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    months = serializers.IntegerField()
+    password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+
+class QuoteSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=Deposit.Kind.choices)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    months = serializers.IntegerField()
+
+
+class PasswordConfirmSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+
+class TermDepositSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    total_invested = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    interest_at_maturity = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
+    days_left = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Deposit
+        fields = [
+            "id", "reference", "kind", "kind_label", "status", "amount", "tenure_months",
+            "interest_rate", "installments_paid", "start_date", "maturity_date", "next_due_date",
+            "maturity_amount", "payout_amount", "closed_at", "created_at",
+            "total_invested", "interest_at_maturity", "progress", "days_left",
+        ]
+
+    def get_interest_at_maturity(self, obj):
+        full = obj.amount * obj.tenure_months if obj.kind == Deposit.Kind.RECURRING else obj.amount
+        return obj.maturity_amount - full
+
+    def get_progress(self, obj):
+        total = (obj.maturity_date - obj.start_date).days or 1
+        done = (min(date.today(), obj.maturity_date) - obj.start_date).days
+        return max(0, min(100, round(done * 100 / total)))
+
+    def get_days_left(self, obj):
+        return max((obj.maturity_date - date.today()).days, 0)

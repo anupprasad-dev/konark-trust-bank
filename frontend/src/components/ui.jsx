@@ -67,6 +67,8 @@ const BADGES = {
   withdrawal: "bg-amber-100 text-amber-800",
   reversal: "bg-violet-100 text-violet-800",
   cancelled: "bg-slate-200 text-slate-700",
+  matured: "bg-emerald-100 text-emerald-800",
+  closed: "bg-slate-200 text-slate-700",
 };
 
 export function Badge({ kind, children }) {

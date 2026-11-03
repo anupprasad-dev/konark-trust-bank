@@ -14,11 +14,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, Beneficiary, Card, Feedback, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, Deposit, Feedback, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
-    ApproveSerializer, CardSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
+    ApproveSerializer, CardSerializer, OpenDepositSerializer, TermDepositSerializer,
+    PasswordConfirmSerializer, QuoteSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
     CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
@@ -622,3 +623,68 @@ class AdminFeedbackListView(generics.ListAPIView):
     permission_classes = [IsBankAdmin]
     serializer_class = FeedbackSerializer
     queryset = Feedback.objects.all()
+
+
+# ====================================================================== fixed / recurring deposits
+def _money(value):
+    return {k: (str(v) if hasattr(v, "quantize") else v) for k, v in value.items()}
+
+
+class MyDepositsView(APIView):
+    """GET own deposits (matured ones are paid out first). POST opens a new FD or RD."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        services.settle_matured_deposits(user=request.user)
+        deposits = Deposit.objects.filter(user=request.user)
+        return Response(TermDepositSerializer(deposits, many=True).data)
+
+    def post(self, request):
+        serializer = OpenDepositSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            dep = services.open_deposit(user=request.user, kind=d["kind"], amount=d["amount"], months=d["months"])
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(TermDepositSerializer(dep).data, status=status.HTTP_201_CREATED)
+
+
+class DepositQuoteView(APIView):
+    """Interest calculator: GET ?kind=fixed|recurring&amount=...&months=..."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        serializer = QuoteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            return Response(_money(services.quote_deposit(d["kind"], d["amount"], d["months"])))
+        except services.BankError as exc:
+            return _bad(str(exc))
+
+
+class PayInstallmentView(APIView):
+    permission_classes = [IsCustomer]
+
+    def post(self, request, pk):
+        PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
+        try:
+            dep = services.pay_installment(user=request.user, deposit_id=pk)
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(TermDepositSerializer(dep).data)
+
+
+class CloseDepositView(APIView):
+    permission_classes = [IsCustomer]
+
+    def post(self, request, pk):
+        PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
+        try:
+            dep = services.close_deposit_early(user=request.user, deposit_id=pk)
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(TermDepositSerializer(dep).data)

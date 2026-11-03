@@ -20,6 +20,10 @@ urlpatterns = [
     path("customer/beneficiaries/<int:pk>/", views.BeneficiaryDeleteView.as_view()),
     path("feedback/", views.FeedbackView.as_view()),
     path("customer/cards/", views.MyCardsView.as_view()),
+    path("customer/deposits/", views.MyDepositsView.as_view()),
+    path("customer/deposits/quote/", views.DepositQuoteView.as_view()),
+    path("customer/deposits/<int:pk>/pay/", views.PayInstallmentView.as_view()),
+    path("customer/deposits/<int:pk>/close/", views.CloseDepositView.as_view()),
     # employee
     path("employee/requests/", views.RegistrationRequestListView.as_view()),
     path("employee/requests/<int:pk>/approve/", views.ApproveRequestView.as_view()),

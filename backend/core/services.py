@@ -1,13 +1,14 @@
 """Business logic. Everything that moves money lives here, inside DB transactions."""
+import calendar
 import secrets
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, Card, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, Card, Deposit, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
@@ -228,6 +229,8 @@ def delete_customer_account(*, employee, account_id, confirm_username):
         raise BankError("Only customer accounts can be deleted here.")
     if confirm_username.strip().lower() != user.username.lower():
         raise BankError("The username you typed does not match. Nothing was deleted.")
+    if Deposit.objects.filter(user=user, status=Deposit.Status.ACTIVE).exists():
+        raise BankError("This customer has an active Fixed or Recurring Deposit. It must be closed first.")
 
     name = user.display_name
     number = account.account_number
@@ -361,3 +364,198 @@ def reject_card(*, employee, card_id, reason):
     card.reviewed_at = timezone.now()
     card.save()
     return card
+
+
+# ------------------------------------------------------------------ fixed / recurring deposits
+MIN_FD, MAX_FD = Decimal("1000"), Decimal("1000000")
+MIN_RD, MAX_RD = Decimal("100"), Decimal("100000")
+MIN_MONTHS, MAX_MONTHS = 3, 60
+MAX_ACTIVE_DEPOSITS = 10
+EARLY_CLOSE_PENALTY = Decimal("1.00")  # percentage points taken off the rate if closed early
+PAISE = Decimal("0.01")
+
+# (up to this many months, yearly interest %): longer lock-in earns a better rate
+RATE_TABLE = [(6, Decimal("5.50")), (12, Decimal("6.50")), (36, Decimal("7.00")), (60, Decimal("6.75"))]
+
+
+def interest_rate_for(months):
+    for upto, rate in RATE_TABLE:
+        if months <= upto:
+            return rate
+    return RATE_TABLE[-1][1]
+
+
+def add_months(d, months):
+    index = d.month - 1 + months
+    year, month = d.year + index // 12, index % 12 + 1
+    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def _grow(amount, annual_rate, months):
+    """`amount` after `months` at `annual_rate` %, interest added every quarter (as Indian banks do)."""
+    if months <= 0 or annual_rate <= 0:
+        return amount
+    factor = (1 + annual_rate / Decimal(400)) ** (Decimal(months) / Decimal(3))
+    return amount * factor
+
+
+def fd_maturity(amount, months, rate):
+    return _grow(amount, rate, months).quantize(PAISE, ROUND_HALF_UP)
+
+
+def rd_maturity(installment, months, rate, paid=None):
+    """Every instalment i (0-based) earns interest from its month until maturity."""
+    paid = months if paid is None else paid
+    total = sum((_grow(installment, rate, months - i) for i in range(paid)), Decimal("0"))
+    return total.quantize(PAISE, ROUND_HALF_UP)
+
+
+def quote_deposit(kind, amount, months):
+    """What a customer would get. Used by the calculator and when opening."""
+    if kind not in Deposit.Kind.values:
+        raise BankError("Choose a Fixed Deposit or a Recurring Deposit.")
+    low, high = (MIN_FD, MAX_FD) if kind == Deposit.Kind.FIXED else (MIN_RD, MAX_RD)
+    if not (low <= amount <= high):
+        raise BankError(f"The amount must be between {low:,.0f} and {high:,.0f} rupees.")
+    if not (MIN_MONTHS <= months <= MAX_MONTHS):
+        raise BankError(f"The period must be between {MIN_MONTHS} and {MAX_MONTHS} months.")
+    rate = interest_rate_for(months)
+    if kind == Deposit.Kind.FIXED:
+        invested, maturity = amount, fd_maturity(amount, months, rate)
+    else:
+        invested, maturity = amount * months, rd_maturity(amount, months, rate)
+    return {
+        "kind": kind, "amount": amount, "months": months, "interest_rate": rate,
+        "total_invested": invested, "maturity_amount": maturity, "interest_earned": maturity - invested,
+    }
+
+
+def _new_deposit_ref(kind):
+    prefix = "FD" if kind == Deposit.Kind.FIXED else "RD"
+    while True:
+        ref = prefix + "".join(secrets.choice("0123456789") for _ in range(8))
+        if not Deposit.objects.filter(reference=ref).exists():
+            return ref
+
+
+def _lock_account(user):
+    try:
+        account = Account.objects.select_for_update().get(user=user)
+    except Account.DoesNotExist:
+        raise BankError("You do not have a bank account yet.")
+    if not account.is_active:
+        raise BankError("Your account is blocked. Please contact the bank.")
+    return account
+
+
+@transaction.atomic
+def open_deposit(*, user, kind, amount: Decimal, months: int):
+    q = quote_deposit(kind, amount, months)
+    account = _lock_account(user)
+    if Deposit.objects.filter(user=user, status=Deposit.Status.ACTIVE).count() >= MAX_ACTIVE_DEPOSITS:
+        raise BankError(f"You can have at most {MAX_ACTIVE_DEPOSITS} active deposits.")
+    if account.balance < amount:
+        raise BankError("Insufficient balance.")
+
+    today = timezone.localdate()
+    dep = Deposit.objects.create(
+        user=user, reference=_new_deposit_ref(kind), kind=kind, amount=amount,
+        tenure_months=months, interest_rate=q["interest_rate"], installments_paid=1,
+        start_date=today, maturity_date=add_months(today, months),
+        next_due_date=add_months(today, 1) if kind == Deposit.Kind.RECURRING and months > 1 else None,
+        maturity_amount=q["maturity_amount"],
+    )
+    account.balance -= amount
+    account.save(update_fields=["balance"])
+    Transaction.objects.create(
+        txn_type=Transaction.Type.TERM_DEPOSIT, from_account=account, amount=amount,
+        remark=f"{dep.get_kind_display()} {dep.reference} opened", performed_by=user,
+    )
+    return dep
+
+
+@transaction.atomic
+def pay_installment(*, user, deposit_id):
+    try:
+        dep = Deposit.objects.select_for_update().get(pk=deposit_id, user=user)
+    except Deposit.DoesNotExist:
+        raise BankError("Deposit not found.")
+    if dep.kind != Deposit.Kind.RECURRING or dep.status != Deposit.Status.ACTIVE:
+        raise BankError("This deposit does not take instalments.")
+    if dep.installments_paid >= dep.tenure_months:
+        raise BankError("All instalments are already paid.")
+    account = _lock_account(user)
+    if account.balance < dep.amount:
+        raise BankError("Insufficient balance.")
+
+    account.balance -= dep.amount
+    account.save(update_fields=["balance"])
+    dep.installments_paid += 1
+    dep.next_due_date = (
+        add_months(dep.start_date, dep.installments_paid) if dep.installments_paid < dep.tenure_months else None
+    )
+    dep.save(update_fields=["installments_paid", "next_due_date"])
+    Transaction.objects.create(
+        txn_type=Transaction.Type.TERM_DEPOSIT, from_account=account, amount=dep.amount,
+        remark=f"RD {dep.reference} instalment {dep.installments_paid} of {dep.tenure_months}",
+        performed_by=user,
+    )
+    return dep
+
+
+def _pay_out(dep, account, amount, status, remark):
+    account.balance += amount
+    account.save(update_fields=["balance"])
+    dep.status, dep.payout_amount, dep.closed_at = status, amount, timezone.now()
+    dep.save(update_fields=["status", "payout_amount", "closed_at"])
+    Transaction.objects.create(
+        txn_type=Transaction.Type.TERM_PAYOUT, to_account=account, amount=amount,
+        remark=remark, performed_by=dep.user,
+    )
+
+
+@transaction.atomic
+def close_deposit_early(*, user, deposit_id):
+    """Take the money out before maturity: interest is 1 percentage point lower and only for the time held."""
+    try:
+        dep = Deposit.objects.select_for_update().get(pk=deposit_id, user=user)
+    except Deposit.DoesNotExist:
+        raise BankError("Deposit not found.")
+    if dep.status != Deposit.Status.ACTIVE:
+        raise BankError("This deposit is already closed.")
+    account = Account.objects.select_for_update().get(user=user)
+
+    held = 0
+    today = timezone.localdate()
+    while add_months(dep.start_date, held + 1) <= today:
+        held += 1
+    rate = max(dep.interest_rate - EARLY_CLOSE_PENALTY, Decimal("0"))
+    if dep.kind == Deposit.Kind.FIXED:
+        payout = fd_maturity(dep.amount, held, rate)
+    else:
+        payout = sum((_grow(dep.amount, rate, max(held - i, 0)) for i in range(dep.installments_paid)), Decimal("0"))
+        payout = payout.quantize(PAISE, ROUND_HALF_UP)
+    _pay_out(dep, account, payout, Deposit.Status.CLOSED, f"{dep.get_kind_display()} {dep.reference} closed early")
+    return dep
+
+
+def settle_matured_deposits(user=None, today=None):
+    """Pay out every deposit whose maturity date has come. Safe to call any number of times."""
+    today = today or timezone.localdate()
+    qs = Deposit.objects.filter(status=Deposit.Status.ACTIVE, maturity_date__lte=today)
+    if user is not None:
+        qs = qs.filter(user=user)
+    done = 0
+    for dep_id in list(qs.values_list("id", flat=True)):
+        with transaction.atomic():
+            dep = Deposit.objects.select_for_update().get(pk=dep_id)
+            if dep.status != Deposit.Status.ACTIVE:
+                continue
+            account = Account.objects.select_for_update().get(user=dep.user)
+            if dep.kind == Deposit.Kind.FIXED:
+                payout = dep.maturity_amount
+            else:  # RD: only the instalments that were really paid earn interest
+                payout = rd_maturity(dep.amount, dep.tenure_months, dep.interest_rate, paid=dep.installments_paid)
+            _pay_out(dep, account, payout, Deposit.Status.MATURED, f"{dep.get_kind_display()} {dep.reference} matured")
+            done += 1
+    return done

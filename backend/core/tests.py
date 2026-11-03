@@ -1244,3 +1244,102 @@ class FeedbackAndProfileTests(BankTestBase):
         self.assertIsNotNone(me["last_login"])
         self.assertEqual(me["bank"]["ifsc"], "KTBL0000001")
         self.assertEqual(len(me["cif"]), 11)
+
+
+class TermDepositTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.customer = make_user("asha", Role.CUSTOMER, with_account=True, balance="100000")
+        self.login("asha")
+
+    def open(self, kind="fixed", amount="10000", months=12):
+        return self.client.post(
+            "/api/customer/deposits/",
+            {"kind": kind, "amount": amount, "months": months, "password": PASSWORD}, format="json",
+        )
+
+    def balance(self):
+        return Account.objects.get(user=self.customer).balance
+
+    def test_fd_math(self):
+        from . import services
+        # 10,000 for 12 months at 6.5%, interest added every quarter
+        self.assertEqual(services.fd_maturity(Decimal("10000"), 12, Decimal("6.50")), Decimal("10666.02"))
+        self.assertEqual(services.interest_rate_for(6), Decimal("5.50"))
+        self.assertEqual(services.interest_rate_for(24), Decimal("7.00"))
+
+    def test_open_fd_locks_money_and_records_ledger(self):
+        r = self.open()
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(self.balance(), Decimal("90000"))
+        self.assertEqual(r.data["status"], "active")
+        self.assertGreater(Decimal(r.data["maturity_amount"]), Decimal("10000"))
+        txn = Transaction.objects.get(txn_type="term_deposit")
+        self.assertEqual(txn.amount, Decimal("10000"))
+        hist = self.client.get("/api/customer/transactions/").data["results"][0]
+        self.assertEqual(hist["direction"], "DEBIT")
+        self.assertIn("term deposit", hist["counterparty_name"].lower())
+
+    def test_wrong_password_and_insufficient_balance(self):
+        r = self.client.post("/api/customer/deposits/", {"kind": "fixed", "amount": "5000", "months": 12, "password": "nope"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.open(amount="500000").status_code, 400)  # more than the max / balance
+        self.assertEqual(self.open(amount="999").status_code, 400)  # below the minimum
+        self.assertEqual(self.open(months=2).status_code, 400)
+        self.assertEqual(self.balance(), Decimal("100000"))
+
+    def test_quote_matches_open(self):
+        q = self.client.get("/api/customer/deposits/quote/", {"kind": "recurring", "amount": "1000", "months": 12}).data
+        self.assertEqual(Decimal(q["total_invested"]), Decimal("12000"))
+        self.assertGreater(Decimal(q["interest_earned"]), 0)
+        r = self.open("recurring", "1000", 12)
+        self.assertEqual(r.data["maturity_amount"], q["maturity_amount"])
+        self.assertEqual(self.balance(), Decimal("99000"))  # first instalment taken now
+
+    def test_rd_installments(self):
+        dep_id = self.open("recurring", "1000", 6).data["id"]
+        r = self.client.post(f"/api/customer/deposits/{dep_id}/pay/", {"password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["installments_paid"], 2)
+        self.assertEqual(self.balance(), Decimal("98000"))
+
+    def test_fd_cannot_take_installments(self):
+        dep_id = self.open().data["id"]
+        r = self.client.post(f"/api/customer/deposits/{dep_id}/pay/", {"password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_early_close_pays_less_than_maturity(self):
+        dep_id = self.open().data["id"]
+        r = self.client.post(f"/api/customer/deposits/{dep_id}/close/", {"password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["status"], "closed")
+        # closed on the same day: the principal comes back, no interest yet
+        self.assertEqual(self.balance(), Decimal("100000"))
+        self.assertEqual(self.client.post(f"/api/customer/deposits/{dep_id}/close/", {"password": PASSWORD}, format="json").status_code, 400)
+
+    def test_maturity_pays_principal_plus_interest(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from . import services
+        from .models import Deposit
+        self.open()
+        Deposit.objects.update(maturity_date=timezone.localdate() - timedelta(days=1))
+        # listing the deposits settles matured ones
+        data = self.client.get("/api/customer/deposits/").data
+        self.assertEqual(data[0]["status"], "matured")
+        self.assertEqual(self.balance(), Decimal("90000") + Decimal(data[0]["maturity_amount"]))
+        self.assertEqual(services.settle_matured_deposits(), 0)  # never paid twice
+
+    def test_active_deposit_blocks_account_deletion(self):
+        from . import services
+        self.open()
+        emp = make_user("emp1", Role.EMPLOYEE)
+        with self.assertRaises(services.BankError):
+            services.delete_customer_account(
+                employee=emp, account_id=self.customer.account.id, confirm_username="asha"
+            )
+
+    def test_employee_cannot_use_deposits(self):
+        make_user("emp2", Role.EMPLOYEE)
+        self.login("emp2")
+        self.assertEqual(self.client.get("/api/customer/deposits/").status_code, 403)

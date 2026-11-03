@@ -116,6 +116,8 @@ class Transaction(models.Model):
         DEPOSIT = "deposit", "Deposit"
         WITHDRAWAL = "withdrawal", "Withdrawal"
         REVERSAL = "reversal", "Reversal"  # created when a transfer is cancelled
+        TERM_DEPOSIT = "term_deposit", "Deposit locked"  # money moved into an FD / RD
+        TERM_PAYOUT = "term_payout", "Deposit payout"  # money (and interest) paid back
 
     class Status(models.TextChoices):
         COMPLETED = "completed", "Completed"
@@ -181,6 +183,8 @@ class Transaction(models.Model):
             return f"{self.from_name} (closed account)", self.from_account_number
         if self.txn_type == self.Type.DEPOSIT:
             return "Konark Trust Bank (cash deposit)", ""
+        if self.txn_type == self.Type.TERM_PAYOUT:
+            return "Konark Trust Bank (deposit payout)", ""
         return "Closed account", self.from_account_number
 
     def to_party(self):
@@ -191,6 +195,8 @@ class Transaction(models.Model):
             return f"{self.to_name} (closed account)", self.to_account_number
         if self.txn_type == self.Type.WITHDRAWAL:
             return "Konark Trust Bank (cash withdrawal)", ""
+        if self.txn_type == self.Type.TERM_DEPOSIT:
+            return "Konark Trust Bank (term deposit)", ""
         return "Closed account", self.to_account_number
 
 
@@ -262,3 +268,45 @@ class Feedback(models.Model):
 
     def __str__(self):
         return f"{self.username}: {self.rating}/5"
+
+
+class Deposit(models.Model):
+    """A Fixed Deposit (one lump sum) or Recurring Deposit (a fixed amount every month)."""
+
+    class Kind(models.TextChoices):
+        FIXED = "fixed", "Fixed Deposit"
+        RECURRING = "recurring", "Recurring Deposit"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        MATURED = "matured", "Matured"
+        CLOSED = "closed", "Closed early"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="deposits")
+    reference = models.CharField(max_length=12, unique=True, editable=False)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+
+    # FD: the lump sum. RD: the monthly instalment.
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    tenure_months = models.PositiveSmallIntegerField()
+    interest_rate = models.DecimalField(max_digits=5, decimal_places=2)  # per year, fixed when opened
+    installments_paid = models.PositiveSmallIntegerField(default=1)
+    start_date = models.DateField()
+    maturity_date = models.DateField()
+    next_due_date = models.DateField(null=True, blank=True)  # RD only
+    maturity_amount = models.DecimalField(max_digits=14, decimal_places=2)  # promised if held to the end
+
+    payout_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference} {self.get_kind_display()} ({self.status})"
+
+    @property
+    def total_invested(self):
+        return self.amount * self.installments_paid if self.kind == self.Kind.RECURRING else self.amount

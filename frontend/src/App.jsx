@@ -12,6 +12,7 @@ const Beneficiaries = lazy(() => import("./pages/customer/Beneficiaries.jsx"));
 const CustomerDashboard = lazy(() => import("./pages/customer/Dashboard.jsx"));
 const History = lazy(() => import("./pages/customer/History.jsx"));
 const Transfer = lazy(() => import("./pages/customer/Transfer.jsx"));
+const Deposits = lazy(() => import("./pages/customer/Deposits.jsx"));
 const Cards = lazy(() => import("./pages/customer/Cards.jsx"));
 const CardRequests = lazy(() => import("./pages/employee/CardRequests.jsx"));
 const AccountHistory = lazy(() => import("./pages/employee/AccountHistory.jsx"));
@@ -44,6 +45,7 @@ const customerLinks = [
   { to: "/customer/history", label: "Transaction History", icon: "history" },
   { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
   { to: "/customer/statement", label: "Account Statement", icon: "statement" },
+  { to: "/customer/deposits", label: "Deposits", icon: "chart" },
   { to: "/customer/cards", label: "Cards", icon: "card" },
 ];
 
@@ -81,6 +83,7 @@ export default function App() {
         <Route path="history" element={<History />} />
         <Route path="beneficiaries" element={<Beneficiaries />} />
         <Route path="statement" element={<Statement />} />
+        <Route path="deposits" element={<Deposits />} />
         <Route path="cards" element={<Cards />} />
         <Route path="profile" element={<Profile />} />
       </Route>
