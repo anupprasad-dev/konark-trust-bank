@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { WheelMark } from "../../components/Brand.jsx";
 import Greeting from "../../components/Greeting.jsx";
 import Icon from "../../components/icons.jsx";
-import { Alert, Badge, DirectionIcon, Empty, formatDate, formatINR, Spinner } from "../../components/ui.jsx";
+import { Alert, Avatar, Badge, DirectionIcon, Empty, formatDate, formatINR, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const groupDigits = (value = "") => String(value).replace(/(.{4})/g, "$1 ").trim();
@@ -32,12 +32,34 @@ export default function CustomerDashboard() {
   const account = useApi("/customer/account/");
   const recent = useApi("/customer/transactions/", { page_size: 6 });
   const people = useApi("/customer/beneficiaries/");
+  const month = useApi("/customer/transactions/", { page_size: 50 });
   const [showBalance, setShowBalance] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (account.loading) return <Spinner />;
   if (account.error) return <Alert>{account.error}</Alert>;
   const acc = account.data;
+
+  // money in / out for this calendar month, from the latest 50 entries
+  const monthly = (() => {
+    const rows = month.data?.results;
+    if (!rows) return { ready: false };
+    const now = new Date();
+    let credit = 0;
+    let debit = 0;
+    let all = true;
+    rows.forEach((t) => {
+      const d = new Date(t.created_at);
+      if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) {
+        all = false;
+        return;
+      }
+      if (t.status === "cancelled") return;
+      if (t.direction === "CREDIT") credit += Number(t.amount);
+      else debit += Number(t.amount);
+    });
+    return { ready: true, credit, debit, capped: all && rows.length >= 50 };
+  })();
 
   const copy = async () => {
     try {
@@ -54,55 +76,57 @@ export default function CustomerDashboard() {
       <Greeting />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* The balance card: the one memorable thing on this page */}
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 px-4 py-3.5 text-white shadow-md shadow-brand-900/10 sm:px-5 lg:col-span-2">
-          <WheelMark className="pointer-events-none absolute -bottom-10 -right-8 h-32 w-32 text-white/10" hub={false} />
-          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-brand-100">Savings account</p>
-                <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
-              </div>
-              <div className="mt-1 flex items-center gap-2">
-                <p className="num font-mono text-base tracking-widest">{groupDigits(acc.account_number)}</p>
-                <button
-                  onClick={copy}
-                  className="flex h-6 items-center gap-1 rounded-md bg-white/10 px-1.5 text-[11px] font-semibold hover:bg-white/20"
-                  aria-label="Copy account number"
-                >
-                  <Icon name={copied ? "check" : "copy"} className="h-3 w-3" />
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </div>
+        {/* Balance card: small, one column wide on desktop, full width on phones */}
+        <section className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 p-4 text-white shadow-md shadow-brand-900/10 lg:max-w-sm">
+          <WheelMark className="pointer-events-none absolute -bottom-8 -right-6 h-28 w-28 text-white/10" hub={false} />
+          <div className="relative">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-brand-100">Savings account</p>
+              <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
             </div>
 
-            <div className="sm:text-right">
-              <p className="text-xs text-brand-100">Available balance</p>
-              <div className="mt-0.5 flex items-center gap-2 sm:justify-end">
-                <p className="num text-2xl font-extrabold">{showBalance ? formatINR(acc.balance) : "₹ ••••••"}</p>
-                <button
-                  onClick={() => setShowBalance(!showBalance)}
-                  className="flex h-7 items-center gap-1.5 rounded-full bg-white/15 px-2.5 text-[11px] font-semibold hover:bg-white/25"
-                  aria-pressed={showBalance}
-                >
-                  <Icon name={showBalance ? "eyeOff" : "eye"} className="h-3.5 w-3.5" />
-                  {showBalance ? "Hide" : "View"}
-                </button>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="num font-mono text-[15px] tracking-widest">{groupDigits(acc.account_number)}</p>
+              <button
+                onClick={copy}
+                className="flex h-6 items-center gap-1 rounded-md bg-white/10 px-1.5 text-[11px] font-semibold hover:bg-white/20"
+                aria-label="Copy account number"
+              >
+                <Icon name={copied ? "check" : "copy"} className="h-3 w-3" />
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+            {/* eye icon sits right below the account number */}
+            <div className="mt-2.5 flex items-center gap-2.5 border-t border-white/15 pt-2.5">
+              <button
+                onClick={() => setShowBalance(!showBalance)}
+                className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+                aria-pressed={showBalance}
+                aria-label={showBalance ? "Hide balance" : "Show balance"}
+              >
+                <Icon name={showBalance ? "eyeOff" : "eye"} className="h-4 w-4" />
+              </button>
+              <div className="min-w-0">
+                <p className="text-[11px] leading-none text-brand-100">Available balance</p>
+                <p className="num mt-1 truncate text-xl font-extrabold leading-none">
+                  {showBalance ? formatINR(acc.balance) : "₹ ••••••"}
+                </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="card">
+        <section className="card lg:col-span-2">
           <h2 className="text-sm font-bold text-slate-900">Quick actions</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
             {ACTIONS.map((a) => (
               <Link
                 key={a.to}
                 to={a.to}
-                className={`flex flex-col items-start gap-3 rounded-2xl p-3.5 text-sm font-bold transition ${
+                className={`flex flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center text-xs font-bold transition sm:text-[13px] ${
                   a.primary
-                    ? "col-span-2 bg-brand-700 text-white hover:bg-brand-800"
+                    ? "bg-brand-700 text-white hover:bg-brand-800"
                     : "bg-slate-50 text-slate-700 hover:bg-brand-50 hover:text-brand-700"
                 }`}
               >
@@ -116,28 +140,45 @@ export default function CustomerDashboard() {
         </section>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { icon: "users", label: "Saved beneficiaries", value: people.data ? people.data.length : "-", to: "/customer/beneficiaries" },
-          { icon: "ledger", label: "Transactions", value: recent.data ? recent.data.count : "-", to: "/customer/history" },
-          {
-            icon: "calendar",
-            label: "Last activity",
-            value: recent.data?.results?.[0] ? dayLabel(recent.data.results[0].created_at) : "No activity yet",
-            to: "/customer/history",
-          },
+          { icon: "send", label: `Money in${monthly.capped ? " (this month, 50+)" : " this month"}`, value: monthly.ready ? formatINR(monthly.credit) : "-", to: "/customer/history", tone: "bg-emerald-50 text-emerald-600" },
+          { icon: "wallet", label: `Money out${monthly.capped ? " (this month, 50+)" : " this month"}`, value: monthly.ready ? formatINR(monthly.debit) : "-", to: "/customer/history", tone: "bg-rose-50 text-rose-600" },
+          { icon: "users", label: "Saved beneficiaries", value: people.data ? people.data.length : "-", to: "/customer/beneficiaries", tone: "bg-amber-50 text-amber-600" },
+          { icon: "ledger", label: "Total transactions", value: recent.data ? recent.data.count : "-", to: "/customer/history", tone: "bg-amber-50 text-amber-600" },
         ].map((t) => (
-          <Link key={t.label} to={t.to} className="card flex items-center gap-3.5 transition hover:border-brand-200 hover:bg-brand-50/40">
-            <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+          <Link key={t.label} to={t.to} className="card flex items-center gap-3 p-3.5 transition hover:border-brand-200 hover:bg-brand-50/40 sm:p-4">
+            <span className={`hidden h-10 w-10 flex-none items-center justify-center rounded-xl sm:flex ${t.tone}`}>
               <Icon name={t.icon} className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-xs text-slate-500">{t.label}</p>
-              <p className="num truncate text-lg font-extrabold text-slate-900">{t.value}</p>
+              <p className="truncate text-xs text-slate-500">{t.label}</p>
+              <p className="num truncate text-base font-extrabold text-slate-900 sm:text-lg">{t.value}</p>
             </div>
           </Link>
         ))}
       </div>
+
+      {people.data?.length > 0 && (
+        <section className="card mt-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900">Send again</h2>
+            <Link to="/customer/beneficiaries" className="text-xs font-bold text-brand-700 hover:underline">Manage</Link>
+          </div>
+          <div className="-mx-1 mt-3 flex gap-3 overflow-x-auto px-1 pb-1">
+            {people.data.slice(0, 8).map((b) => (
+              <Link
+                key={b.id}
+                to={`/customer/transfer?to=${b.account_number}`}
+                className="flex w-20 flex-none flex-col items-center gap-1.5 rounded-xl p-2 text-center transition hover:bg-brand-50"
+              >
+                <Avatar name={b.name || b.nickname || "?"} className="h-12 w-12 text-base" />
+                <span className="w-full truncate text-xs font-semibold text-slate-700">{b.nickname || b.name}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card mt-4 p-0 sm:p-0">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">

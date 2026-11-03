@@ -462,6 +462,7 @@ class AdminStatsView(APIView):
             ).count(),
             "total_balance": str(Account.objects.aggregate(t=Sum("balance"))["t"] or 0),
             "total_transactions": Transaction.objects.count(),
+            "pending_cards": Card.objects.filter(status=Card.Status.PENDING).count(),
         })
 
 
