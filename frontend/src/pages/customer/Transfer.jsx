@@ -116,6 +116,20 @@ export default function Transfer() {
             hint="Maximum ₹2,00,000 per transfer"
             required
           />
+          <div className="-mt-2 flex flex-wrap gap-2" aria-label="Quick amounts">
+            {[500, 1000, 5000, 10000, 25000].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setForm({ ...form, amount: String(n) })}
+                className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                  String(form.amount) === String(n) ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+                }`}
+              >
+                ₹{n.toLocaleString("en-IN")}
+              </button>
+            ))}
+          </div>
           <Input label="Remark (optional)" value={form.remark} onChange={set("remark")} error={errors.remark} maxLength={140} />
           <PasswordInput
             label="Confirm with your password"

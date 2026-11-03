@@ -101,6 +101,15 @@
   }
 
   .card {
+    animation: page-in 0.35s ease-out both;
     @apply rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,35,80,0.04)] sm:p-5;
   }
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none !important; }
 }

@@ -115,7 +115,7 @@ export function PasswordInput({ label, error, hint, ...props }) {
 
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-50 via-white to-white px-4 py-3.5 ring-1 ring-slate-200/70 sm:mb-7 sm:px-5 sm:py-4">
       <div className="min-w-0">
         <h1 className="flex items-center gap-3 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
           <span className="h-6 w-1 rounded-full bg-sun-500" aria-hidden="true" />

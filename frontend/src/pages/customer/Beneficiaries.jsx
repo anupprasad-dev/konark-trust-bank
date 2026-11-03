@@ -10,6 +10,7 @@ export default function Beneficiaries() {
   const [form, setForm] = useState({ account_number: "", nickname: "" });
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
+  const [find, setFind] = useState("");
   const [busy, setBusy] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
@@ -71,8 +72,18 @@ export default function Beneficiaries() {
       {loading ? (
         <Spinner />
       ) : data?.length ? (
+        <>
+        {data.length > 4 && (
+          <input
+            className="input mb-3 sm:max-w-sm"
+            placeholder="Search by name or account number"
+            value={find}
+            onChange={(e) => setFind(e.target.value)}
+            aria-label="Search beneficiaries"
+          />
+        )}
         <ul className="grid gap-3 sm:grid-cols-2">
-          {data.map((b) => (
+          {data.filter((b) => `${b.name} ${b.nickname} ${b.account_number}`.toLowerCase().includes(find.trim().toLowerCase())).map((b) => (
             <li key={b.id} className="card flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <Avatar name={b.nickname || b.name} className="h-11 w-11 text-base" />
@@ -93,6 +104,7 @@ export default function Beneficiaries() {
             </li>
           ))}
         </ul>
+        </>
       ) : (
         !error && <div className="card"><Empty>No beneficiaries yet. Add an account number above to send money faster next time.</Empty></div>
       )}

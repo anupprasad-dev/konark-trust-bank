@@ -97,8 +97,14 @@ export default function CustomerDashboard() {
               </button>
             </div>
 
-            {/* eye icon sits right below the account number */}
-            <div className="mt-2.5 flex items-center gap-2.5 border-t border-white/15 pt-2.5">
+            {/* balance on the left, eye button on its right */}
+            <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-white/15 pt-2.5">
+              <div className="min-w-0">
+                <p className="text-[11px] leading-none text-brand-100">Available balance</p>
+                <p className="num mt-1 truncate text-xl font-extrabold leading-none">
+                  {showBalance ? formatINR(acc.balance) : "₹ ••••••"}
+                </p>
+              </div>
               <button
                 onClick={() => setShowBalance(!showBalance)}
                 className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
@@ -107,12 +113,6 @@ export default function CustomerDashboard() {
               >
                 <Icon name={showBalance ? "eyeOff" : "eye"} className="h-4 w-4" />
               </button>
-              <div className="min-w-0">
-                <p className="text-[11px] leading-none text-brand-100">Available balance</p>
-                <p className="num mt-1 truncate text-xl font-extrabold leading-none">
-                  {showBalance ? formatINR(acc.balance) : "₹ ••••••"}
-                </p>
-              </div>
             </div>
           </div>
         </section>
