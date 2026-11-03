@@ -1,24 +1,27 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import { Spinner } from "./components/ui.jsx";
 import { homePath, useAuth } from "./context/AuthContext.jsx";
-import AuthPage from "./pages/AuthPage.jsx";
-import Home from "./pages/Home.jsx";
-import Profile from "./pages/Profile.jsx";
-import Statement from "./pages/customer/Statement.jsx";
-import Beneficiaries from "./pages/customer/Beneficiaries.jsx";
-import CustomerDashboard from "./pages/customer/Dashboard.jsx";
-import History from "./pages/customer/History.jsx";
-import Transfer from "./pages/customer/Transfer.jsx";
-import Cards from "./pages/customer/Cards.jsx";
-import CardRequests from "./pages/employee/CardRequests.jsx";
-import AccountHistory from "./pages/employee/AccountHistory.jsx";
-import Accounts from "./pages/employee/Accounts.jsx";
-import Requests from "./pages/employee/Requests.jsx";
-import Customers from "./pages/admin/Customers.jsx";
-import Employees from "./pages/admin/Employees.jsx";
-import Overview from "./pages/admin/Overview.jsx";
-import AllTransactions from "./pages/admin/AllTransactions.jsx";
+
+const AuthPage = lazy(() => import("./pages/AuthPage.jsx"));
+const Home = lazy(() => import("./pages/Home.jsx"));
+const Profile = lazy(() => import("./pages/Profile.jsx"));
+const Statement = lazy(() => import("./pages/customer/Statement.jsx"));
+const Beneficiaries = lazy(() => import("./pages/customer/Beneficiaries.jsx"));
+const CustomerDashboard = lazy(() => import("./pages/customer/Dashboard.jsx"));
+const History = lazy(() => import("./pages/customer/History.jsx"));
+const Transfer = lazy(() => import("./pages/customer/Transfer.jsx"));
+const Cards = lazy(() => import("./pages/customer/Cards.jsx"));
+const CardRequests = lazy(() => import("./pages/employee/CardRequests.jsx"));
+const AccountHistory = lazy(() => import("./pages/employee/AccountHistory.jsx"));
+const Accounts = lazy(() => import("./pages/employee/Accounts.jsx"));
+const Requests = lazy(() => import("./pages/employee/Requests.jsx"));
+const Customers = lazy(() => import("./pages/admin/Customers.jsx"));
+const Employees = lazy(() => import("./pages/admin/Employees.jsx"));
+const Overview = lazy(() => import("./pages/admin/Overview.jsx"));
+const AllTransactions = lazy(() => import("./pages/admin/AllTransactions.jsx"));
+const Feedback = lazy(() => import("./pages/admin/Feedback.jsx"));
 
 function Protected({ role, children }) {
   const { user, checking } = useAuth();
@@ -55,10 +58,12 @@ const adminLinks = [
   { to: "/admin/employees", label: "Employees", icon: "shield" },
   { to: "/admin/customers", label: "Customers", icon: "users" },
   { to: "/admin/transactions", label: "All Transactions", icon: "ledger" },
+  { to: "/admin/feedback", label: "Feedback", icon: "mail" },
 ];
 
 export default function App() {
   return (
+    <Suspense fallback={<Spinner />}>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<AuthPage />} />
@@ -107,10 +112,12 @@ export default function App() {
         <Route path="employees" element={<Employees />} />
         <Route path="customers" element={<Customers />} />
         <Route path="transactions" element={<AllTransactions />} />
+        <Route path="feedback" element={<Feedback />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

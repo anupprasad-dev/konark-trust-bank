@@ -75,21 +75,21 @@ export default function CustomerDashboard() {
     <>
       <Greeting />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Balance card: small, one column wide on desktop, full width on phones */}
-        <section className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 p-4 text-white shadow-md shadow-brand-900/10 lg:max-w-sm">
-          <WheelMark className="pointer-events-none absolute -bottom-8 -right-6 h-28 w-28 text-white/10" hub={false} />
+      <div className="grid gap-4 lg:grid-cols-5">
+        {/* Balance card: 2 of 5 columns on desktop, full width on phones */}
+        <section className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 p-5 text-white shadow-md shadow-brand-900/10 sm:p-5 lg:col-span-2">
+          <WheelMark className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-white/10" hub={false} />
           <div className="relative">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-brand-100">Savings account</p>
+              <p className="text-sm font-semibold text-brand-100">Savings account</p>
               <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
             </div>
 
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="num font-mono text-[15px] tracking-widest">{groupDigits(acc.account_number)}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <p className="num font-mono text-lg tracking-widest sm:text-xl">{groupDigits(acc.account_number)}</p>
               <button
                 onClick={copy}
-                className="flex h-6 items-center gap-1 rounded-md bg-white/10 px-1.5 text-[11px] font-semibold hover:bg-white/20"
+                className="flex h-7 items-center gap-1 rounded-md bg-white/10 px-2 text-xs font-semibold hover:bg-white/20"
                 aria-label="Copy account number"
               >
                 <Icon name={copied ? "check" : "copy"} className="h-3 w-3" />
@@ -98,26 +98,26 @@ export default function CustomerDashboard() {
             </div>
 
             {/* balance on the left, eye button on its right */}
-            <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-white/15 pt-2.5">
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/15 pt-4">
               <div className="min-w-0">
-                <p className="text-[11px] leading-none text-brand-100">Available balance</p>
-                <p className="num mt-1 truncate text-xl font-extrabold leading-none">
+                <p className="text-xs leading-none text-brand-100">Available balance</p>
+                <p className="num mt-1.5 truncate text-2xl font-extrabold leading-none sm:text-3xl">
                   {showBalance ? formatINR(acc.balance) : "₹ ••••••"}
                 </p>
               </div>
               <button
                 onClick={() => setShowBalance(!showBalance)}
-                className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+                className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
                 aria-pressed={showBalance}
                 aria-label={showBalance ? "Hide balance" : "Show balance"}
               >
-                <Icon name={showBalance ? "eyeOff" : "eye"} className="h-4 w-4" />
+                <Icon name={showBalance ? "eyeOff" : "eye"} className="h-5 w-5" />
               </button>
             </div>
           </div>
         </section>
 
-        <section className="card lg:col-span-2">
+        <section className="card lg:col-span-3">
           <h2 className="text-sm font-bold text-slate-900">Quick actions</h2>
           <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
             {ACTIONS.map((a) => (

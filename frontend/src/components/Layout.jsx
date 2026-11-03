@@ -1,18 +1,26 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
-import { Avatar } from "./ui.jsx";
+import RatingForm from "./RatingForm.jsx";
+import { Avatar, Modal } from "./ui.jsx";
 
 /** Shared page frame (sidebar on desktop, top bar on phones) for all three dashboards. */
 export default function Layout({ roleLabel, links, profileTo }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const onLogout = () => {
+  const [rating, setRating] = useState(false);
+
+  const finishLogout = () => {
+    setRating(false);
     logout();
     navigate("/");
   };
+
+  // customers are asked to rate the bank first; they can skip
+  const onLogout = () => (user?.role === "customer" ? setRating(true) : finishLogout());
 
   const desktopLink = ({ isActive }) =>
     `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
@@ -110,6 +118,15 @@ export default function Layout({ roleLabel, links, profileTo }) {
           </NavLink>
         ))}
       </nav>
+
+      {rating && (
+        <Modal title="Rate our service" onClose={finishLogout}>
+          <p className="mb-4 text-sm text-slate-600">
+            How was your experience with Konark Trust Bank today? You can skip this and log out.
+          </p>
+          <RatingForm onDone={finishLogout} onSkip={finishLogout} skipLabel="Skip & logout" submitLabel="Submit & logout" />
+        </Modal>
+      )}
 
       <main className="flex-1 md:ml-64">
         <div className="mx-auto max-w-5xl px-4 pb-6 pt-2 md:px-8 md:py-9">

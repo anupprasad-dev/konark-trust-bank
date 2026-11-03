@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Account, Beneficiary, Card, RegistrationRequest, Transaction, User
+from .models import Account, Beneficiary, Card, Feedback, RegistrationRequest, Transaction, User
 
 
 @admin.register(User)
@@ -58,3 +58,9 @@ class CardAdmin(admin.ModelAdmin):
     list_display = ("user", "card_type", "status", "expiry", "created_at")
     list_filter = ("card_type", "status")
     search_fields = ("user__username", "user__full_name")
+
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ("username", "rating", "created_at")
+    list_filter = ("rating",)

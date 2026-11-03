@@ -1,6 +1,6 @@
 from datetime import datetime, time
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -14,11 +14,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, Beneficiary, Card, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, Feedback, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
-    ApproveSerializer, CardSerializer, CustomerDetailsSerializer, EmployeeCardSerializer,
+    ApproveSerializer, CardSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
     CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
@@ -65,6 +65,10 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
+BANK_IFSC = "KTBL0000001"  # made-up code for this demo bank
+BANK_BRANCH = "Konark Main Branch"
+
+
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -72,6 +76,9 @@ class MeView(APIView):
         data = UserSerializer(request.user).data
         account = Account.objects.filter(user=request.user).first()
         data["account_number"] = account.account_number if account else None
+        data["last_login"] = request.user.previous_login  # the login before this session
+        data["cif"] = f"{request.user.id:011d}"
+        data["bank"] = {"name": "Konark Trust Bank", "ifsc": BANK_IFSC, "branch": BANK_BRANCH}
         return Response(data)
 
 
@@ -463,6 +470,8 @@ class AdminStatsView(APIView):
             "total_balance": str(Account.objects.aggregate(t=Sum("balance"))["t"] or 0),
             "total_transactions": Transaction.objects.count(),
             "pending_cards": Card.objects.filter(status=Card.Status.PENDING).count(),
+            "feedback_count": Feedback.objects.count(),
+            "average_rating": round(Feedback.objects.aggregate(a=Avg("rating"))["a"] or 0, 1),
         })
 
 
@@ -594,3 +603,22 @@ class RejectCardView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         return Response(EmployeeCardSerializer(card).data)
+
+
+# ====================================================================== feedback
+class FeedbackView(APIView):
+    """Any logged-in user can rate the bank (1-5 stars, optional comment)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = FeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user, username=request.user.username)
+        return Response({"detail": "Thank you for your feedback."}, status=status.HTTP_201_CREATED)
+
+
+class AdminFeedbackListView(generics.ListAPIView):
+    permission_classes = [IsBankAdmin]
+    serializer_class = FeedbackSerializer
+    queryset = Feedback.objects.all()

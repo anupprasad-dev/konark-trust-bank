@@ -18,10 +18,22 @@ export const formatDay = (value) => {
 };
 
 export function Spinner({ label = "Loading..." }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
   return (
-    <div className="flex items-center justify-center gap-3 py-12 text-sm text-slate-500" role="status">
-      <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600" />
-      {label}
+    <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-slate-500" role="status">
+      <div className="flex items-center gap-3">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600" />
+        {label}
+      </div>
+      {slow && (
+        <p className="max-w-xs px-4 text-center text-xs text-slate-400">
+          The bank server is waking up. This can take up to a minute the first time. Please wait.
+        </p>
+      )}
     </div>
   );
 }

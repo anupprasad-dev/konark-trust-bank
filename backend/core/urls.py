@@ -18,6 +18,7 @@ urlpatterns = [
     path("customer/transfer/", views.TransferView.as_view()),
     path("customer/beneficiaries/", views.BeneficiaryListCreateView.as_view()),
     path("customer/beneficiaries/<int:pk>/", views.BeneficiaryDeleteView.as_view()),
+    path("feedback/", views.FeedbackView.as_view()),
     path("customer/cards/", views.MyCardsView.as_view()),
     # employee
     path("employee/requests/", views.RegistrationRequestListView.as_view()),
@@ -39,5 +40,6 @@ urlpatterns = [
     path("admin-panel/employees/", views.AdminEmployeeListCreateView.as_view()),
     path("admin-panel/customers/", views.AdminCustomerListView.as_view()),
     path("admin-panel/users/<int:pk>/toggle-active/", views.AdminToggleActiveView.as_view()),
+    path("admin-panel/feedback/", views.AdminFeedbackListView.as_view()),
     path("admin-panel/transactions/", views.AdminTransactionListView.as_view()),
 ]

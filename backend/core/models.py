@@ -29,6 +29,7 @@ class User(AbstractUser):
     date_of_birth = models.DateField(null=True, blank=True)
     photo_url = models.CharField(max_length=500, blank=True)       # link to the photo (Cloudinary)
     photo_public_id = models.CharField(max_length=200, blank=True)  # needed to delete it again
+    previous_login = models.DateTimeField(null=True, blank=True)    # the login before this one, shown on Profile
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CUSTOMER)
 
     objects = BankUserManager()
@@ -245,3 +246,19 @@ class Card(models.Model):
 
     def __str__(self):
         return f"{self.get_card_type_display()} for {self.user.username} ({self.status})"
+
+
+class Feedback(models.Model):
+    """A star rating (1-5) and an optional comment, given when a customer logs out or from Profile."""
+
+    user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="feedback")
+    username = models.CharField(max_length=150)  # kept even if the account is deleted later
+    rating = models.PositiveSmallIntegerField()
+    comment = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.username}: {self.rating}/5"

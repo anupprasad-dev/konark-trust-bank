@@ -1207,3 +1207,40 @@ class CardTests(BankTestBase):
         Account.objects.filter(user=self.customer).update(is_active=False)
         self.login("asha")
         self.assertEqual(self.apply().status_code, 400)
+
+
+class FeedbackAndProfileTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.customer = make_user("asha", Role.CUSTOMER, with_account=True)
+        self.admin = make_user("boss", Role.ADMIN)
+
+    def test_rating_saved_and_validated(self):
+        self.login("asha")
+        self.assertEqual(self.client.post("/api/feedback/", {"rating": 5, "comment": "Nice"}, format="json").status_code, 201)
+        self.assertEqual(self.client.post("/api/feedback/", {"rating": 6}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/feedback/", {"rating": 0}, format="json").status_code, 400)
+
+    def test_anonymous_cannot_rate(self):
+        self.assertEqual(self.client.post("/api/feedback/", {"rating": 5}, format="json").status_code, 401)
+
+    def test_admin_sees_feedback_customer_does_not(self):
+        self.login("asha")
+        self.client.post("/api/feedback/", {"rating": 4}, format="json")
+        self.assertEqual(self.client.get("/api/admin-panel/feedback/").status_code, 403)
+        self.login("boss")
+        r = self.client.get("/api/admin-panel/feedback/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data["count"], 1)
+        stats = self.client.get("/api/admin-panel/stats/").data
+        self.assertEqual(stats["feedback_count"], 1)
+        self.assertEqual(stats["average_rating"], 4.0)
+
+    def test_last_login_is_the_previous_one(self):
+        first = self.login("asha")
+        self.assertIsNone(self.client.get("/api/auth/me/").data["last_login"])
+        self.login("asha")
+        me = self.client.get("/api/auth/me/").data
+        self.assertIsNotNone(me["last_login"])
+        self.assertEqual(me["bank"]["ifsc"], "KTBL0000001")
+        self.assertEqual(len(me["cif"]), 11)

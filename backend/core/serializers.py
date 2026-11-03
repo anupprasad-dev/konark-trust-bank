@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.hashers import make_password
+from django.utils import timezone
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -10,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import photos
-from .models import Account, Beneficiary, Card, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, Feedback, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -113,6 +114,10 @@ class LoginSerializer(TokenObtainPairSerializer):
             raise PermissionDenied("Employees and admins must use Staff Login.")
         if portal == "staff" and self.user.role == Role.CUSTOMER:
             raise PermissionDenied("Customers must use Personal Banking Login.")
+        # remember the login before this one, so Profile can show "Last login"
+        self.user.previous_login = self.user.last_login
+        self.user.last_login = timezone.now()
+        self.user.save(update_fields=["previous_login", "last_login"])
         data["user"] = UserSerializer(self.user).data
         return data
 
@@ -553,3 +558,13 @@ class EmployeeCardSerializer(CardSerializer):
 
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.display_name if obj.reviewed_by else None
+
+
+class FeedbackSerializer(serializers.ModelSerializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    comment = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    class Meta:
+        model = Feedback
+        fields = ["id", "rating", "comment", "username", "created_at"]
+        read_only_fields = ["id", "username", "created_at"]

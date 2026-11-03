@@ -21,6 +21,10 @@ export default function Overview() {
       tone: data.pending_cards ? "sun" : "slate",
       hint: data.pending_cards ? "Waiting for an employee" : "All caught up",
     },
+    {
+      label: "Customer rating", value: data.feedback_count ? `${data.average_rating} / 5` : "No ratings yet", icon: "mail", tone: "green",
+      hint: data.feedback_count ? `${data.feedback_count} ratings` : undefined,
+    },
     { label: "Total transactions", value: data.total_transactions, icon: "ledger", tone: "brand" },
     { label: "Total deposits held", value: formatINR(data.total_balance), icon: "wallet", tone: "green" },
   ];
