@@ -10,7 +10,7 @@ from django.test import override_settings
 from PIL import Image
 from rest_framework.test import APITestCase
 
-from .models import Account, RegistrationRequest, Role, Transaction, User
+from .models import Account, Card, RegistrationRequest, Role, Transaction, User
 from .services import generate_account_number
 
 PASSWORD = "Str0ng#Pass99"
@@ -1098,3 +1098,112 @@ class PhotoTests(BankTestBase):
         self.assertTrue(shown.endswith("/v1/konark/customers/abc.jpg"))
         self.assertEqual(display_url(""), "")
         self.assertEqual(display_url("/media/customers/a.jpg"), "/media/customers/a.jpg")
+
+
+class CardTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.customer = make_user("asha", Role.CUSTOMER, with_account=True)
+        self.other = make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.employee = make_user("emp1", Role.EMPLOYEE)
+
+    def apply(self, card_type="debit"):
+        return self.client.post("/api/customer/cards/", {"card_type": card_type}, format="json")
+
+    def test_customer_can_apply_and_sees_pending(self):
+        self.login("asha")
+        r = self.apply()
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.data["status"], "pending")
+        self.assertIsNone(r.data["card_number"])
+        self.assertEqual(len(self.client.get("/api/customer/cards/").data), 1)
+
+    def test_no_duplicate_pending_or_approved(self):
+        self.login("asha")
+        self.assertEqual(self.apply().status_code, 201)
+        self.assertEqual(self.apply().status_code, 400)
+        self.assertEqual(self.apply("credit").status_code, 201)  # other type is fine
+
+    def test_bad_type_rejected(self):
+        self.login("asha")
+        self.assertEqual(self.apply("gold").status_code, 400)
+
+    def test_employee_approves_debit_card(self):
+        self.login("asha")
+        card_id = self.apply().data["id"]
+        self.login("emp1")
+        r = self.client.post(f"/api/employee/cards/{card_id}/approve/", {}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.data["card_number"].endswith(Card.objects.get(pk=card_id).card_number[-4:]))
+        self.assertIn("•", r.data["card_number"])  # employee sees it masked
+        card = Card.objects.get(pk=card_id)
+        self.assertEqual(len(card.card_number), 16)
+        self.assertIsNotNone(card.expiry)
+        self.assertIsNone(card.credit_limit)
+        # customer sees the full number
+        self.login("asha")
+        mine = self.client.get("/api/customer/cards/").data[0]
+        self.assertEqual(mine["card_number"], card.card_number)
+        self.assertEqual(self.apply().status_code, 400)  # already has one
+
+    def test_card_number_passes_luhn(self):
+        self.login("asha")
+        card_id = self.apply().data["id"]
+        self.login("emp1")
+        self.client.post(f"/api/employee/cards/{card_id}/approve/", {}, format="json")
+        number = Card.objects.get(pk=card_id).card_number
+        total = 0
+        for i, ch in enumerate(reversed(number)):
+            n = int(ch)
+            if i % 2 == 1:
+                n *= 2
+                if n > 9:
+                    n -= 9
+            total += n
+        self.assertEqual(total % 10, 0)
+
+    def test_credit_card_gets_limit(self):
+        self.login("asha")
+        card_id = self.apply("credit").data["id"]
+        self.login("emp1")
+        r = self.client.post(f"/api/employee/cards/{card_id}/approve/", {"credit_limit": "75000"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(Card.objects.get(pk=card_id).credit_limit, Decimal("75000"))
+
+    def test_credit_limit_too_big(self):
+        self.login("asha")
+        card_id = self.apply("credit").data["id"]
+        self.login("emp1")
+        r = self.client.post(f"/api/employee/cards/{card_id}/approve/", {"credit_limit": "9999999"}, format="json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_reject_needs_reason_then_can_reapply(self):
+        self.login("asha")
+        card_id = self.apply().data["id"]
+        self.login("emp1")
+        self.assertEqual(self.client.post(f"/api/employee/cards/{card_id}/reject/", {"reason": ""}, format="json").status_code, 400)
+        r = self.client.post(f"/api/employee/cards/{card_id}/reject/", {"reason": "Documents incomplete"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        # cannot handle twice
+        self.assertEqual(self.client.post(f"/api/employee/cards/{card_id}/approve/", {}, format="json").status_code, 400)
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/customer/cards/").data[0]["rejection_reason"], "Documents incomplete")
+        self.assertEqual(self.apply().status_code, 201)
+
+    def test_customer_sees_only_own_cards(self):
+        self.login("asha")
+        self.apply()
+        self.login("ravi")
+        self.assertEqual(self.client.get("/api/customer/cards/").data, [])
+
+    def test_roles_are_enforced(self):
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/employee/cards/").status_code, 403)
+        self.login("emp1")
+        self.assertEqual(self.client.get("/api/customer/cards/").status_code, 403)
+        self.assertEqual(self.client.get("/api/employee/cards/").status_code, 200)
+
+    def test_frozen_account_cannot_apply(self):
+        Account.objects.filter(user=self.customer).update(is_active=False)
+        self.login("asha")
+        self.assertEqual(self.apply().status_code, 400)

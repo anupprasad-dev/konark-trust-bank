@@ -210,3 +210,38 @@ class Beneficiary(models.Model):
 
     def __str__(self):
         return f"{self.owner.username} -> {self.account_number}"
+
+
+class Card(models.Model):
+    """A debit or credit card a customer applied for. It gets a number once an employee approves it."""
+
+    class Type(models.TextChoices):
+        DEBIT = "debit", "Debit card"
+        CREDIT = "credit", "Credit card"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="cards")
+    card_type = models.CharField(max_length=10, choices=Type.choices)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # filled in when approved
+    card_number = models.CharField(max_length=16, null=True, blank=True, unique=True)
+    expiry = models.DateField(null=True, blank=True)
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    rejection_reason = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviewed_cards"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_card_type_display()} for {self.user.username} ({self.status})"

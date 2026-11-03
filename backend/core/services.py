@@ -1,12 +1,13 @@
 """Business logic. Everything that moves money lives here, inside DB transactions."""
 import secrets
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, Card, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
@@ -272,3 +273,91 @@ def reject_registration(*, request_id, employee, reason):
     reg.reviewed_at = timezone.now()
     reg.save()
     return reg
+
+
+# ------------------------------------------------------------------ cards
+CARD_PREFIX = {Card.Type.DEBIT: "9401", Card.Type.CREDIT: "9502"}  # made-up numbers, not a real network
+DEFAULT_CREDIT_LIMIT = Decimal("50000")
+MAX_CREDIT_LIMIT = Decimal("1000000")
+
+
+def _luhn_digit(number: str) -> str:
+    """The check digit that makes `number + digit` pass the Luhn test (like real card numbers)."""
+    total = 0
+    for i, ch in enumerate(reversed(number)):
+        n = int(ch)
+        if i % 2 == 0:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+    return str((10 - total % 10) % 10)
+
+
+def generate_card_number(card_type):
+    while True:
+        body = CARD_PREFIX[card_type] + "".join(secrets.choice("0123456789") for _ in range(11))
+        number = body + _luhn_digit(body)
+        if not Card.objects.filter(card_number=number).exists():
+            return number
+
+
+def apply_for_card(*, user, card_type):
+    if card_type not in Card.Type.values:
+        raise BankError("Please choose a debit card or a credit card.")
+    account = Account.objects.filter(user=user).first()
+    if account is None or not account.is_active:
+        raise BankError("You need an active bank account to apply for a card.")
+    label = Card.Type(card_type).label.lower()
+    if Card.objects.filter(user=user, card_type=card_type, status=Card.Status.PENDING).exists():
+        raise BankError(f"Your {label} application is already waiting for the bank.")
+    if Card.objects.filter(user=user, card_type=card_type, status=Card.Status.APPROVED).exists():
+        raise BankError(f"You already have a {label}.")
+    return Card.objects.create(user=user, card_type=card_type)
+
+
+@transaction.atomic
+def approve_card(*, employee, card_id, credit_limit=None):
+    try:
+        card = Card.objects.select_for_update().select_related("user").get(pk=card_id)
+    except Card.DoesNotExist:
+        raise BankError("Card request not found.")
+    if card.status != Card.Status.PENDING:
+        raise BankError("This card request has already been handled.")
+
+    if card.card_type == Card.Type.CREDIT:
+        credit_limit = credit_limit if credit_limit is not None else DEFAULT_CREDIT_LIMIT
+        if credit_limit <= 0 or credit_limit > MAX_CREDIT_LIMIT:
+            raise BankError(f"The credit limit must be between 1 and {MAX_CREDIT_LIMIT:,.0f} rupees.")
+        card.credit_limit = credit_limit
+
+    today = timezone.localdate()
+    year, month = today.year + 5, today.month  # valid for 5 years, to the end of that month
+    next_month = date(year + (month == 12), month % 12 + 1, 1)
+    card.expiry = next_month - timedelta(days=1)
+    card.card_number = generate_card_number(card.card_type)
+    card.status = Card.Status.APPROVED
+    card.rejection_reason = ""
+    card.reviewed_by = employee
+    card.reviewed_at = timezone.now()
+    card.save()
+    return card
+
+
+@transaction.atomic
+def reject_card(*, employee, card_id, reason):
+    reason = (reason or "").strip()
+    if not reason:
+        raise BankError("Please write the reason for rejecting this card request.")
+    try:
+        card = Card.objects.select_for_update().get(pk=card_id)
+    except Card.DoesNotExist:
+        raise BankError("Card request not found.")
+    if card.status != Card.Status.PENDING:
+        raise BankError("This card request has already been handled.")
+    card.status = Card.Status.REJECTED
+    card.rejection_reason = reason[:255]
+    card.reviewed_by = employee
+    card.reviewed_at = timezone.now()
+    card.save()
+    return card

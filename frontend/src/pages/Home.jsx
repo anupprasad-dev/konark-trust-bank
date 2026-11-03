@@ -80,12 +80,13 @@ const TIPS = [
 ];
 
 const FAQ = [
-  { q: "How do I open an account?", a: "Press Register Now, fill in the form and submit. When a bank employee approves your request you can log in with the username and password you chose." },
-  { q: "I forgot my password. What now?", a: "Contact the bank. An employee can set a new password for you without needing the old one. After you log in, you can change it yourself from the profile icon." },
-  { q: "Why was my registration rejected?", a: "The employee writes the reason when rejecting. A rejected request can be approved later, or you can register again with correct details." },
+  { q: "How do I open an account?", a: "Press Register Now, fill in the form, add your photo and submit. After the bank approves your request you can log in with the username and password you chose." },
+  { q: "I forgot my password. What now?", a: "Contact the bank and ask for a new password. They can set one for you without needing the old one. After you log in, you can change it yourself from the profile icon." },
+  { q: "Why was my registration rejected?", a: "The bank gives a reason when a request is rejected. You can contact the bank to have it looked at again, or register again with correct details." },
   { q: "Can I get a statement?", a: "Yes. After login open Account Statement, choose the dates and download the PDF." },
-  { q: "A transfer was made by mistake. Can it be cancelled?", a: "Contact the bank within 24 hours. An employee can cancel a recent transfer if the receiver has not already spent the money, and records the reason for you to see." },
-  { q: "Can employees and admins log in from Personal Banking?", a: "No. Customers use the Personal Banking login. Employees and admins use the separate Staff Login." },
+  { q: "How do I apply for a debit or credit card?", a: "Log in, open Cards and choose the card you want. When the bank approves it, your card appears on the same page." },
+  { q: "A transfer was made by mistake. Can it be cancelled?", a: "Contact the bank within 24 hours. A recent transfer can be cancelled if the receiver has not already spent the money. The reason is shown in your history." },
+  { q: "Is my photo safe?", a: "Your photo is used only for your profile and for the bank to confirm who you are. It is not shown to other customers." },
 ];
 
 function Logo({ light = false }) {

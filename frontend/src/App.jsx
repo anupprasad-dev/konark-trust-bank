@@ -10,6 +10,8 @@ import Beneficiaries from "./pages/customer/Beneficiaries.jsx";
 import CustomerDashboard from "./pages/customer/Dashboard.jsx";
 import History from "./pages/customer/History.jsx";
 import Transfer from "./pages/customer/Transfer.jsx";
+import Cards from "./pages/customer/Cards.jsx";
+import CardRequests from "./pages/employee/CardRequests.jsx";
 import AccountHistory from "./pages/employee/AccountHistory.jsx";
 import Accounts from "./pages/employee/Accounts.jsx";
 import Requests from "./pages/employee/Requests.jsx";
@@ -39,11 +41,13 @@ const customerLinks = [
   { to: "/customer/history", label: "Transaction History", icon: "history" },
   { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
   { to: "/customer/statement", label: "Account Statement", icon: "statement" },
+  { to: "/customer/cards", label: "Cards", icon: "card" },
 ];
 
 const employeeLinks = [
   { to: "/employee", label: "Registration Requests", end: true, icon: "inbox" },
   { to: "/employee/accounts", label: "Customer Accounts", icon: "wallet" },
+  { to: "/employee/cards", label: "Card Requests", icon: "card" },
 ];
 
 const adminLinks = [
@@ -72,6 +76,7 @@ export default function App() {
         <Route path="history" element={<History />} />
         <Route path="beneficiaries" element={<Beneficiaries />} />
         <Route path="statement" element={<Statement />} />
+        <Route path="cards" element={<Cards />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
@@ -85,6 +90,7 @@ export default function App() {
       >
         <Route index element={<Requests />} />
         <Route path="accounts" element={<Accounts />} />
+        <Route path="cards" element={<CardRequests />} />
         <Route path="accounts/:id" element={<AccountHistory />} />
         <Route path="profile" element={<Profile />} />
       </Route>

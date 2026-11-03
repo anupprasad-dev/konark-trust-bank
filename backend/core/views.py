@@ -14,10 +14,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee
 from .serializers import (
-    AccountSerializer, AdminTransactionSerializer, ApproveSerializer, CustomerDetailsSerializer,
+    AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
+    ApproveSerializer, CardSerializer, CustomerDetailsSerializer, EmployeeCardSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
     CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
@@ -518,3 +519,77 @@ class AdminTransactionListView(generics.ListAPIView):
                 | Q(to_name__icontains=q)
             )
         return qs
+
+
+# ====================================================================== cards
+class MyCardsView(APIView):
+    """Customer: GET own cards (newest first), POST to apply for a debit or credit card."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        cards = Card.objects.filter(user=request.user).select_related("user")
+        return Response(CardSerializer(cards, many=True).data)
+
+    def post(self, request):
+        serializer = ApplyCardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            card = services.apply_for_card(
+                user=request.user, card_type=serializer.validated_data["card_type"]
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(CardSerializer(card).data, status=status.HTTP_201_CREATED)
+
+
+class EmployeeCardListView(generics.ListAPIView):
+    """Query params: status=pending|approved|rejected, q=search."""
+
+    permission_classes = [IsEmployee]
+    serializer_class = EmployeeCardSerializer
+
+    def get_queryset(self):
+        qs = Card.objects.select_related("user", "user__account", "reviewed_by")
+        params = self.request.query_params
+        state = params.get("status", "")
+        if state in Card.Status.values:
+            qs = qs.filter(status=state)
+        q = params.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(user__full_name__icontains=q) | Q(user__username__icontains=q)
+                | Q(user__phone__icontains=q) | Q(user__account__account_number__icontains=q)
+            )
+        return qs
+
+
+class ApproveCardView(APIView):
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        serializer = ApproveCardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            card = services.approve_card(
+                employee=request.user, card_id=pk,
+                credit_limit=serializer.validated_data.get("credit_limit"),
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(EmployeeCardSerializer(card).data)
+
+
+class RejectCardView(APIView):
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        serializer = RejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            card = services.reject_card(
+                employee=request.user, card_id=pk, reason=serializer.validated_data["reason"]
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(EmployeeCardSerializer(card).data)

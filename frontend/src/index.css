@@ -22,8 +22,8 @@
   .marquee-track {
     display: flex;
     width: max-content;
-    /* Stays still for the first second after the page opens, then starts moving. */
-    animation: marquee-rtl 24s linear 1s infinite;
+    /* Already in motion when the page opens: the negative delay starts it part-way through. */
+    animation: marquee-rtl 24s linear -9s infinite;
   }
   .marquee-track:hover {
     animation-play-state: paused;

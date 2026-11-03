@@ -13,6 +13,7 @@ const ACTIONS = [
   { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
   { to: "/customer/history", label: "History", icon: "history" },
   { to: "/customer/statement", label: "Statement", icon: "statement" },
+  { to: "/customer/cards", label: "Cards", icon: "card" },
 ];
 
 /** "Today", "Yesterday" or "12 Oct 2026" for the group headings in the list. */
@@ -54,37 +55,40 @@ export default function CustomerDashboard() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* The balance card: the one memorable thing on this page */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-800 to-brand-600 p-4 text-white shadow-md shadow-brand-900/10 sm:p-5 lg:col-span-2">
-          <WheelMark className="pointer-events-none absolute -bottom-14 -right-10 h-44 w-44 text-white/10" hub={false} />
-          <div className="relative">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-brand-100">Savings account</p>
-              <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 px-4 py-3.5 text-white shadow-md shadow-brand-900/10 sm:px-5 lg:col-span-2">
+          <WheelMark className="pointer-events-none absolute -bottom-10 -right-8 h-32 w-32 text-white/10" hub={false} />
+          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-brand-100">Savings account</p>
+                <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="num font-mono text-base tracking-widest">{groupDigits(acc.account_number)}</p>
+                <button
+                  onClick={copy}
+                  className="flex h-6 items-center gap-1 rounded-md bg-white/10 px-1.5 text-[11px] font-semibold hover:bg-white/20"
+                  aria-label="Copy account number"
+                >
+                  <Icon name={copied ? "check" : "copy"} className="h-3 w-3" />
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
             </div>
 
-            <div className="mt-2.5 flex items-center gap-2">
-              <p className="num font-mono text-base tracking-widest sm:text-lg">{groupDigits(acc.account_number)}</p>
-              <button
-                onClick={copy}
-                className="flex h-7 items-center gap-1.5 rounded-lg bg-white/10 px-2 text-xs font-semibold hover:bg-white/20"
-                aria-label="Copy account number"
-              >
-                <Icon name={copied ? "check" : "copy"} className="h-3.5 w-3.5" />
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-
-            <p className="mt-4 text-xs text-brand-100">Available balance</p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2.5">
-              <p className="num text-2xl font-extrabold sm:text-3xl">{showBalance ? formatINR(acc.balance) : "₹ ••••••"}</p>
-              <button
-                onClick={() => setShowBalance(!showBalance)}
-                className="flex h-8 items-center gap-1.5 rounded-full bg-white/15 px-3 text-xs font-semibold hover:bg-white/25"
-                aria-pressed={showBalance}
-              >
-                <Icon name={showBalance ? "eyeOff" : "eye"} className="h-4 w-4" />
-                {showBalance ? "Hide" : "View balance"}
-              </button>
+            <div className="sm:text-right">
+              <p className="text-xs text-brand-100">Available balance</p>
+              <div className="mt-0.5 flex items-center gap-2 sm:justify-end">
+                <p className="num text-2xl font-extrabold">{showBalance ? formatINR(acc.balance) : "₹ ••••••"}</p>
+                <button
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="flex h-7 items-center gap-1.5 rounded-full bg-white/15 px-2.5 text-[11px] font-semibold hover:bg-white/25"
+                  aria-pressed={showBalance}
+                >
+                  <Icon name={showBalance ? "eyeOff" : "eye"} className="h-3.5 w-3.5" />
+                  {showBalance ? "Hide" : "View"}
+                </button>
+              </div>
             </div>
           </div>
         </section>

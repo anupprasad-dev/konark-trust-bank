@@ -10,7 +10,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import photos
-from .models import Account, Beneficiary, RegistrationRequest, Role, Transaction, User
+from .models import Account, Beneficiary, Card, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -497,3 +497,59 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         return str(obj.account.balance) if hasattr(obj, "account") else None
+
+
+# ------------------------------------------------------------------ cards
+class ApplyCardSerializer(serializers.Serializer):
+    card_type = serializers.ChoiceField(choices=Card.Type.choices)
+
+
+class ApproveCardSerializer(serializers.Serializer):
+    credit_limit = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal("1"),
+        max_value=Decimal("1000000"), required=False,
+    )
+
+
+class CardSerializer(serializers.ModelSerializer):
+    """What the customer sees about their own card (full number)."""
+
+    holder_name = serializers.CharField(source="user.display_name", read_only=True)
+    type_label = serializers.CharField(source="get_card_type_display", read_only=True)
+
+    class Meta:
+        model = Card
+        fields = [
+            "id", "card_type", "type_label", "status", "holder_name", "card_number", "expiry",
+            "credit_limit", "rejection_reason", "created_at", "reviewed_at",
+        ]
+
+
+class EmployeeCardSerializer(CardSerializer):
+    """Employees see the request, but never the full card number."""
+
+    username = serializers.CharField(source="user.username", read_only=True)
+    phone = serializers.CharField(source="user.phone", read_only=True)
+    account_number = serializers.SerializerMethodField()
+    photo = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    class Meta(CardSerializer.Meta):
+        fields = CardSerializer.Meta.fields + [
+            "username", "phone", "account_number", "photo", "reviewed_by_name",
+        ]
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        if data.get("card_number"):
+            data["card_number"] = "•" * 12 + data["card_number"][-4:]
+        return data
+
+    def get_account_number(self, obj):
+        return obj.user.account.account_number if hasattr(obj.user, "account") else None
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.user.photo_url)
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.display_name if obj.reviewed_by else None
