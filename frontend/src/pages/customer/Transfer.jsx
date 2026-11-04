@@ -9,6 +9,7 @@ const EMPTY = { to_account_number: "", amount: "", remark: "", password: "" };
 
 export default function Transfer() {
   const beneficiaries = useApi("/customer/beneficiaries/");
+  const account = useApi("/customer/account/");
   const [params] = useSearchParams();
   // Coming from Beneficiaries ("Send money") fills in the receiver.
   const [form, setForm] = useState({ ...EMPTY, to_account_number: params.get("to") || "" });
@@ -28,6 +29,7 @@ export default function Transfer() {
       const { data } = await api.post("/customer/transfer/", form);
       setReceipt(data);
       setForm(EMPTY);
+      account.reload();
     } catch (err) {
       const fields = fieldErrors(err);
       setErrors(fields);
@@ -79,6 +81,30 @@ export default function Transfer() {
       <div className="grid gap-5 lg:grid-cols-5">
         <form onSubmit={submit} className="card space-y-4 lg:col-span-3">
           <Alert>{error}</Alert>
+          {account.data?.is_frozen && (
+            <Alert>Your account is frozen, so you cannot send money. Unfreeze it in Profile &gt; Update My Security.</Alert>
+          )}
+          {account.data && (
+            <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-500">Daily transfer limit</span>
+                <span className="num font-bold text-slate-900">{formatINR(account.data.daily_limit)}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-brand-600"
+                  style={{ width: `${Math.min(100, (Number(account.data.transferred_today) / Number(account.data.daily_limit)) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">
+                You can still send{" "}
+                <span className="num font-bold text-slate-700">
+                  {formatINR(Math.max(Number(account.data.daily_limit) - Number(account.data.transferred_today), 0))}
+                </span>{" "}
+                today.
+              </p>
+            </div>
+          )}
 
           {beneficiaries.data?.length > 0 && (
             <Field label="Choose a saved beneficiary">

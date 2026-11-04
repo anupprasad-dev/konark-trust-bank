@@ -22,6 +22,7 @@ const Customers = lazy(() => import("./pages/admin/Customers.jsx"));
 const Employees = lazy(() => import("./pages/admin/Employees.jsx"));
 const Overview = lazy(() => import("./pages/admin/Overview.jsx"));
 const AllTransactions = lazy(() => import("./pages/admin/AllTransactions.jsx"));
+const AuditLog = lazy(() => import("./pages/admin/AuditLog.jsx"));
 const Feedback = lazy(() => import("./pages/admin/Feedback.jsx"));
 
 function Protected({ role, children }) {
@@ -60,6 +61,7 @@ const adminLinks = [
   { to: "/admin/employees", label: "Employees", icon: "shield" },
   { to: "/admin/customers", label: "Customers", icon: "users" },
   { to: "/admin/transactions", label: "All Transactions", icon: "ledger" },
+  { to: "/admin/audit", label: "Audit log", icon: "shield" },
   { to: "/admin/feedback", label: "Feedback", icon: "mail" },
 ];
 
@@ -115,6 +117,7 @@ export default function App() {
         <Route path="employees" element={<Employees />} />
         <Route path="customers" element={<Customers />} />
         <Route path="transactions" element={<AllTransactions />} />
+        <Route path="audit" element={<AuditLog />} />
         <Route path="feedback" element={<Feedback />} />
         <Route path="profile" element={<Profile />} />
       </Route>

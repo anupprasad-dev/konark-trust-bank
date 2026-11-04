@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import photos
-from .models import Account, Beneficiary, Card, Deposit, Feedback, RegistrationRequest, Role, Transaction, User
+from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -345,13 +345,19 @@ class AccountSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(source="user.phone", read_only=True)
     date_of_birth = serializers.DateField(source="user.date_of_birth", read_only=True)
     photo = serializers.SerializerMethodField()
+    transferred_today = serializers.SerializerMethodField()
 
     class Meta:
         model = Account
         fields = [
-            "id", "account_number", "balance", "is_active", "created_at",
+            "id", "account_number", "balance", "is_active", "is_frozen", "created_at",
             "holder_name", "username", "email", "phone", "date_of_birth", "photo",
+            "daily_limit", "transferred_today",
         ]
+
+    def get_transferred_today(self, obj):
+        from .services import transferred_today
+        return transferred_today(obj)
 
     def get_photo(self, obj):
         return photos.display_url(obj.user.photo_url)
@@ -526,7 +532,7 @@ class CardSerializer(serializers.ModelSerializer):
         model = Card
         fields = [
             "id", "card_type", "type_label", "status", "holder_name", "card_number", "expiry",
-            "credit_limit", "rejection_reason", "created_at", "reviewed_at",
+            "credit_limit", "is_blocked", "rejection_reason", "created_at", "reviewed_at",
         ]
 
 
@@ -625,3 +631,28 @@ class TermDepositSerializer(serializers.ModelSerializer):
 
     def get_days_left(self, obj):
         return max((obj.maturity_date - date.today()).days, 0)
+
+
+# ------------------------------------------------------------------ security
+class DailyLimitSerializer(serializers.Serializer):
+    daily_limit = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class FreezeSerializer(PasswordConfirmSerializer):
+    frozen = serializers.BooleanField()
+
+
+class BlockCardSerializer(PasswordConfirmSerializer):
+    blocked = serializers.BooleanField()
+
+
+class LoginActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LoginActivity
+        fields = ["id", "success", "ip_address", "device", "created_at"]
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuditLog
+        fields = ["id", "actor_name", "actor_role", "action", "target", "details", "ip_address", "created_at"]

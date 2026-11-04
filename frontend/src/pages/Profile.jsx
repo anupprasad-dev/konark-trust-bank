@@ -3,6 +3,7 @@ import api, { errorMessage, fieldErrors } from "../api";
 import { WheelMark } from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
 import RatingForm from "../components/RatingForm.jsx";
+import { FreezePanel, LoginActivityPanel } from "../components/SecurityPanels.jsx";
 import { Alert, Avatar, formatDate, formatDay, PasswordInput, Spinner } from "../components/ui.jsx";
 import { useAuth } from "../context/AuthContext";
 import { useApi } from "../hooks";
@@ -193,6 +194,8 @@ export default function Profile() {
           )}
 
           {tab === "security" && (
+            <div className="space-y-5">
+            {customer && <FreezePanel />}
             <div className="grid gap-5 xl:grid-cols-5">
               <form onSubmit={submit} className="card space-y-4 xl:col-span-3">
                 <div className="flex items-center gap-3">
@@ -243,6 +246,8 @@ export default function Profile() {
                   The bank will never ask for your password on a call, SMS or email.
                 </p>
               </aside>
+            </div>
+            <LoginActivityPanel />
             </div>
           )}
 

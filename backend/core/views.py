@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -14,11 +15,12 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, Beneficiary, Card, Deposit, Feedback, RegistrationRequest, Role, Transaction, User
-from .permissions import IsBankAdmin, IsCustomer, IsEmployee
+from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
+from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
-    ApproveSerializer, CardSerializer, OpenDepositSerializer, TermDepositSerializer,
+    ApproveSerializer, AuditLogSerializer, BlockCardSerializer, CardSerializer, DailyLimitSerializer,
+    FreezeSerializer, LoginActivitySerializer, OpenDepositSerializer, TermDepositSerializer,
     PasswordConfirmSerializer, QuoteSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
     CustomerListSerializer, DeleteAccountSerializer, DepositSerializer,
@@ -46,6 +48,21 @@ class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
+
+    def _log(self, request, success):
+        username = str(request.data.get("username", "")).strip().lower()
+        user = User.objects.filter(username=username).first() if username else None
+        if user:
+            services.record_login(request, user, success)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            response = super().post(request, *args, **kwargs)
+        except AuthenticationFailed:
+            self._log(request, False)  # wrong password for a real username
+            raise
+        self._log(request, True)
+        return response
 
 
 class RegisterView(generics.CreateAPIView):
@@ -288,6 +305,8 @@ class ApproveRequestView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         reg = RegistrationRequest.objects.select_related("reviewed_by", "user").get(pk=reg.pk)
+        services.audit(request, "registration_approved", f"@{reg.username}",
+                       f"Opening balance Rs. {serializer.validated_data['opening_balance']}")
         return Response(RegistrationRequestSerializer(reg).data)
 
 
@@ -303,6 +322,7 @@ class RejectRequestView(APIView):
             )
         except services.BankError as exc:
             return _bad(str(exc))
+        services.audit(request, "registration_rejected", f"@{reg.username}", serializer.validated_data["reason"])
         return Response(RegistrationRequestSerializer(reg).data)
 
 
@@ -354,6 +374,8 @@ class CancelTransactionView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         sender = Account.objects.select_related("user").get(pk=txn.from_account_id)
+        services.audit(request, "transfer_cancelled", txn.txn_ref,
+                       f"Rs. {txn.amount} returned to @{sender.user.username}. Reason: {serializer.validated_data['reason']}")
         return Response({
             "detail": f"Transaction {txn.txn_ref} was cancelled. Rs. {txn.amount} was returned "
                       f"to {sender.user.display_name} ({sender.account_number}).",
@@ -378,6 +400,7 @@ class ResetCustomerPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         customer.set_password(serializer.validated_data["new_password"])
         customer.save(update_fields=["password"])
+        services.audit(request, "password_reset", f"@{customer.username}")
         return Response({
             "detail": f"Password changed for {customer.display_name} (@{customer.username}). "
                       "Please tell the customer the new password; they can change it in My Profile."
@@ -406,6 +429,7 @@ class UpdateCustomerDetailsView(APIView):
             setattr(customer, field, data[field])
         if changed:
             customer.save(update_fields=changed)
+            services.audit(request, "customer_details_updated", f"@{customer.username}", "Changed: " + ", ".join(changed))
         account.refresh_from_db()
         message = (
             f"Details updated for {customer.display_name} (@{customer.username})."
@@ -430,6 +454,8 @@ class DeleteAccountView(APIView):
             )
         except services.BankError as exc:
             return _bad(str(exc))
+        services.audit(request, "account_deleted", f"@{result['username']} ({result['account_number']})",
+                       f"Paid out Rs. {result['paid_out']}")
         return Response({
             "detail": f"Account {result['account_number']} ({result['username']}) was permanently deleted.",
             "paid_out": str(result["paid_out"]),
@@ -451,6 +477,7 @@ class DepositView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         account = Account.objects.select_related("user").get(pk=txn.to_account_id)
+        services.audit(request, "cash_deposit", f"@{account.user.username} ({account.account_number})", f"Rs. {txn.amount}")
         return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
 
@@ -483,6 +510,10 @@ class AdminEmployeeListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return User.objects.filter(role=Role.EMPLOYEE).order_by("-date_joined")
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        services.audit(self.request, "employee_created", f"@{user.username}")
+
 
 class AdminCustomerListView(generics.ListAPIView):
     permission_classes = [IsBankAdmin]
@@ -509,6 +540,7 @@ class AdminToggleActiveView(APIView):
         user.is_active = not user.is_active
         user.save(update_fields=["is_active"])
         Account.objects.filter(user=user).update(is_active=user.is_active)
+        services.audit(request, "user_unblocked" if user.is_active else "user_blocked", f"@{user.username}")
         return Response({"id": user.id, "is_active": user.is_active})
 
 
@@ -588,6 +620,8 @@ class ApproveCardView(APIView):
             )
         except services.BankError as exc:
             return _bad(str(exc))
+        services.audit(request, "card_issued", f"@{card.user.username}",
+                       f"{card.get_card_type_display()} ending {card.card_number[-4:]}")
         return Response(EmployeeCardSerializer(card).data)
 
 
@@ -603,6 +637,8 @@ class RejectCardView(APIView):
             )
         except services.BankError as exc:
             return _bad(str(exc))
+        services.audit(request, "card_rejected", f"@{card.user.username}",
+                       f"{card.get_card_type_display()}: {card.rejection_reason}")
         return Response(EmployeeCardSerializer(card).data)
 
 
@@ -688,3 +724,76 @@ class CloseDepositView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         return Response(TermDepositSerializer(dep).data)
+
+
+# ====================================================================== security
+class FreezeAccountView(APIView):
+    """Customer freezes (or unfreezes) their own account. While frozen, no money can leave it."""
+
+    permission_classes = [IsCustomer]
+
+    def post(self, request):
+        serializer = FreezeSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        account = services.set_account_frozen(user=request.user, frozen=serializer.validated_data["frozen"])
+        return Response(AccountSerializer(account).data)
+
+
+class BlockCardView(APIView):
+    permission_classes = [IsCustomer]
+
+    def post(self, request, pk):
+        serializer = BlockCardSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        try:
+            card = services.set_card_blocked(
+                user=request.user, card_id=pk, blocked=serializer.validated_data["blocked"]
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(CardSerializer(card).data)
+
+
+class LoginActivityView(generics.ListAPIView):
+    """The latest logins of the signed-in user (customer, employee or admin)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = LoginActivitySerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return LoginActivity.objects.filter(user=self.request.user)[:15]
+
+
+class SetDailyLimitView(APIView):
+    """Employee or admin changes how much a customer may transfer in one day."""
+
+    permission_classes = [IsStaff]
+
+    def patch(self, request, pk):
+        serializer = DailyLimitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            account, old = services.set_daily_limit(account_id=pk, limit=serializer.validated_data["daily_limit"])
+        except services.BankError as exc:
+            return _bad(str(exc))
+        services.audit(request, "daily_limit_changed", f"@{account.user.username}",
+                       f"Rs. {old:,.0f} to Rs. {account.daily_limit:,.0f}")
+        return Response(AccountSerializer(account).data)
+
+
+class AdminAuditLogView(generics.ListAPIView):
+    """Query params: action=..., q=search (staff username, target or details)."""
+
+    permission_classes = [IsBankAdmin]
+    serializer_class = AuditLogSerializer
+
+    def get_queryset(self):
+        qs = AuditLog.objects.all()
+        params = self.request.query_params
+        if params.get("action"):
+            qs = qs.filter(action=params["action"])
+        q = params.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(actor_name__icontains=q) | Q(target__icontains=q) | Q(details__icontains=q))
+        return qs

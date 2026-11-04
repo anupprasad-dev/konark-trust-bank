@@ -3,7 +3,7 @@ import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage } from "../../api";
 import CardVisual from "../../components/CardVisual.jsx";
 import Icon from "../../components/icons.jsx";
-import { Alert, Badge, formatDate, PageHeader, Spinner } from "../../components/ui.jsx";
+import { Alert, Badge, formatDate, Modal, PageHeader, PasswordInput, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const TYPES = [
@@ -16,6 +16,7 @@ export default function Cards() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [problem, setProblem] = useState("");
+  const [toggle, setToggle] = useState(null); // card being blocked / unblocked
 
   const cards = data || [];
   const issued = cards.filter((c) => c.status === "approved");
@@ -56,7 +57,15 @@ export default function Cards() {
               <h2 className="mb-3 text-sm font-extrabold uppercase tracking-wider text-slate-500">Your cards</h2>
               <div className="grid gap-6 md:grid-cols-2">
                 {issued.map((c) => (
-                  <CardVisual key={c.id} card={c} />
+                  <div key={c.id}>
+                    <CardVisual card={c} />
+                    <button
+                      className={`mt-3 ${c.is_blocked ? "chip-green" : "chip-red"}`}
+                      onClick={() => setToggle(c)}
+                    >
+                      {c.is_blocked ? "Unblock card" : "Block card"}
+                    </button>
+                  </div>
                 ))}
               </div>
               <p className="mt-3 text-xs text-slate-500">
@@ -119,6 +128,55 @@ export default function Cards() {
           )}
         </div>
       )}
+      {toggle && (
+        <BlockDialog
+          card={toggle}
+          onClose={() => setToggle(null)}
+          onDone={(message) => {
+            setToggle(null);
+            setNotice(message);
+            reload();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function BlockDialog({ card, onClose, onDone }) {
+  const blocking = !card.is_blocked;
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/customer/cards/${card.id}/block/`, { blocked: blocking, password });
+      onDone(blocking ? "Your card is blocked." : "Your card is active again.");
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={blocking ? "Block this card?" : "Unblock this card?"} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-slate-600">
+          {blocking
+            ? "Use this if you lost the card or think someone else is using it. You can unblock it any time."
+            : "The card will work again."}
+        </p>
+        <Alert>{error}</Alert>
+        <PasswordInput label="Confirm with your password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className={blocking ? "btn-danger" : "btn-primary"} disabled={busy}>{busy ? "Please wait..." : blocking ? "Block card" : "Unblock card"}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Account, Beneficiary, Card, Deposit, Feedback, RegistrationRequest, Transaction, User
+from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Transaction, User
 
 
 @admin.register(User)
@@ -71,3 +71,19 @@ class DepositAdmin(admin.ModelAdmin):
     list_display = ("reference", "user", "kind", "status", "amount", "maturity_date")
     list_filter = ("kind", "status")
     search_fields = ("reference", "user__username")
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "actor_name", "action", "target")
+    list_filter = ("action", "actor_role")
+    search_fields = ("actor_name", "target", "details")
+
+    def has_change_permission(self, request, obj=None):
+        return False  # the audit trail is read-only
+
+
+@admin.register(LoginActivity)
+class LoginActivityAdmin(admin.ModelAdmin):
+    list_display = ("user", "success", "device", "ip_address", "created_at")
+    list_filter = ("success",)

@@ -29,6 +29,7 @@ export default function Accounts() {
   const [toDelete, setToDelete] = useState(null); // account for the delete dialog
   const [toReset, setToReset] = useState(null); // account for the reset-password dialog
   const [toEdit, setToEdit] = useState(null); // account for the edit-details dialog
+  const [toLimit, setToLimit] = useState(null); // account for the daily-limit dialog
   const [notice, setNotice] = useState("");
 
   const { data, loading, error, reload } = useApi("/employee/accounts/", {
@@ -134,6 +135,9 @@ export default function Accounts() {
                   <button className="chip-slate" onClick={() => setToEdit(a)}>
                     <Icon name="edit" /> Edit details
                   </button>
+                  <button className="chip-slate" onClick={() => setToLimit(a)}>
+                    <Icon name="shield" /> Limit {formatINR(a.daily_limit)}
+                  </button>
                   <button className="chip-amber" onClick={() => setToReset(a)}>
                     <Icon name="key" /> Reset password
                   </button>
@@ -150,6 +154,17 @@ export default function Accounts() {
         !error && <div className="card"><Empty>No accounts found.</Empty></div>
       )}
 
+      {toLimit && (
+        <LimitDialog
+          account={toLimit}
+          onClose={() => setToLimit(null)}
+          onDone={(message) => {
+            setToLimit(null);
+            setNotice(message);
+            reload();
+          }}
+        />
+      )}
       {target && (
         <DepositDialog
           account={target}
@@ -418,6 +433,43 @@ function DepositDialog({ account, onClose, onDone }) {
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
           <button className="btn-primary" disabled={busy}>{busy ? "Please wait..." : "Deposit"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+
+function LimitDialog({ account, onClose, onDone }) {
+  const [limit, setLimit] = useState(String(Number(account.daily_limit)));
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await api.patch(`/employee/accounts/${account.id}/limit/`, { daily_limit: limit });
+      onDone(`Daily transfer limit for ${account.holder_name} is now ${formatINR(limit)}.`);
+    } catch (err) {
+      setError(fieldErrors(err).daily_limit || errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Daily transfer limit" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-slate-600">
+          {account.holder_name} &middot; <span className="font-mono">{account.account_number}</span>
+        </p>
+        <p className="text-sm text-slate-500">The most this customer can send in one day. Used today: {formatINR(account.transferred_today)}.</p>
+        <Alert>{error}</Alert>
+        <Input label="Daily limit (INR)" type="number" min="1000" max="1000000" step="1" value={limit} onChange={(e) => setLimit(e.target.value)} hint="Between 1,000 and 10,00,000" required />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={busy}>{busy ? "Please wait..." : "Save limit"}</button>
         </div>
       </form>
     </Modal>

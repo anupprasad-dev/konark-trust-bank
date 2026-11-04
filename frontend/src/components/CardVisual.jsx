@@ -26,7 +26,7 @@ export default function CardVisual({ card, canReveal = true }) {
     <div className="w-full max-w-sm">
       <div
         className={`relative aspect-[1.586/1] w-full overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-lg ${skin} ${
-          issued ? "" : "opacity-80"
+          issued && !card.is_blocked ? "" : card.is_blocked ? "opacity-60 grayscale" : "opacity-80"
         }`}
       >
         {/* fine line pattern, like the guilloche lines printed on real cards */}
@@ -113,6 +113,11 @@ export default function CardVisual({ card, canReveal = true }) {
           </div>
         </div>
       </div>
+      {card.is_blocked && (
+        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+          Card blocked. It cannot be used until you unblock it.
+        </p>
+      )}
       {credit && issued && card.credit_limit && (
         <p className="mt-2 text-sm text-slate-600">
           Credit limit: <span className="num font-bold text-slate-900">{formatINR(card.credit_limit)}</span>

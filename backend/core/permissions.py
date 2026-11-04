@@ -21,3 +21,11 @@ class IsEmployee(_HasRole):
 
 class IsBankAdmin(_HasRole):
     role = Role.ADMIN
+
+
+class IsStaff(BasePermission):
+    """An employee or the admin."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and user.role in (Role.EMPLOYEE, Role.ADMIN))

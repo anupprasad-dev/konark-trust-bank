@@ -82,7 +82,7 @@ export default function CustomerDashboard() {
           <div className="relative">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-brand-100">Savings account</p>
-              <Badge kind={acc.is_active ? "active" : "blocked"}>{acc.is_active ? "Active" : "Blocked"}</Badge>
+              <Badge kind={!acc.is_active ? "blocked" : acc.is_frozen ? "pending" : "active"}>{!acc.is_active ? "Blocked" : acc.is_frozen ? "Frozen" : "Active"}</Badge>
             </div>
 
             <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">

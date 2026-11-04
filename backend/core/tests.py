@@ -1343,3 +1343,145 @@ class TermDepositTests(BankTestBase):
         make_user("emp2", Role.EMPLOYEE)
         self.login("emp2")
         self.assertEqual(self.client.get("/api/customer/deposits/").status_code, 403)
+
+
+class SecurityTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="500000")
+        self.ravi = make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.emp = make_user("emp1", Role.EMPLOYEE)
+        self.boss = make_user("boss", Role.ADMIN)
+        self.ravi_no = self.ravi.account.account_number
+
+    def send(self, amount):
+        return self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.ravi_no, "amount": str(amount), "password": PASSWORD}, format="json",
+        )
+
+    # ---- daily limit
+    def test_daily_limit_blocks_extra_transfers(self):
+        Account.objects.filter(user=self.asha).update(daily_limit=Decimal("10000"))
+        self.login("asha")
+        self.assertEqual(self.send(6000).status_code, 201)
+        r = self.send(5000)  # 6000 + 5000 > 10000
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("daily transfer limit", str(r.data))
+        self.assertEqual(self.send(4000).status_code, 201)  # exactly the limit is fine
+
+    def test_cancelled_transfer_frees_the_limit(self):
+        Account.objects.filter(user=self.asha).update(daily_limit=Decimal("10000"))
+        self.login("asha")
+        txn_id = self.send(9000).data["id"]
+        self.login("emp1")
+        self.client.post(f"/api/employee/transactions/{txn_id}/cancel/", {"reason": "Customer asked for a refund"}, format="json")
+        self.login("asha")
+        self.assertEqual(self.send(9000).status_code, 201)
+
+    def test_account_shows_limit_and_used_today(self):
+        self.login("asha")
+        self.send(1500)
+        data = self.client.get("/api/customer/account/").data
+        self.assertEqual(Decimal(data["daily_limit"]), Decimal("200000"))
+        self.assertEqual(Decimal(data["transferred_today"]), Decimal("1500"))
+
+    def test_employee_and_admin_can_change_limit_customer_cannot(self):
+        acc_id = self.asha.account.id
+        url = f"/api/employee/accounts/{acc_id}/limit/"
+        self.login("asha")
+        self.assertEqual(self.client.patch(url, {"daily_limit": "50000"}, format="json").status_code, 403)
+        self.login("emp1")
+        self.assertEqual(self.client.patch(url, {"daily_limit": "50000"}, format="json").status_code, 200)
+        self.assertEqual(Account.objects.get(pk=acc_id).daily_limit, Decimal("50000"))
+        self.assertEqual(self.client.patch(url, {"daily_limit": "50"}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(url, {"daily_limit": "9999999"}, format="json").status_code, 400)
+        self.login("boss")
+        self.assertEqual(self.client.patch(url, {"daily_limit": "75000"}, format="json").status_code, 200)
+
+    # ---- freeze / block
+    def test_frozen_account_cannot_send_but_can_receive(self):
+        self.login("asha")
+        r = self.client.post("/api/customer/account/freeze/", {"frozen": True, "password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.data["is_frozen"])
+        self.assertEqual(self.send(100).status_code, 400)
+        # someone sends money to the frozen account: allowed
+        self.login("ravi")
+        Account.objects.filter(user=self.ravi).update(balance=Decimal("1000"))
+        r = self.client.post("/api/customer/transfer/", {"to_account_number": self.asha.account.account_number, "amount": "100", "password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 201)
+        self.login("asha")
+        self.client.post("/api/customer/account/freeze/", {"frozen": False, "password": PASSWORD}, format="json")
+        self.assertEqual(self.send(100).status_code, 201)
+
+    def test_freeze_needs_password(self):
+        self.login("asha")
+        r = self.client.post("/api/customer/account/freeze/", {"frozen": True, "password": "wrong"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(Account.objects.get(user=self.asha).is_frozen)
+
+    def test_block_and_unblock_card(self):
+        card = Card.objects.create(user=self.asha, card_type="debit", status="approved", card_number="9401000000000018")
+        self.login("asha")
+        r = self.client.post(f"/api/customer/cards/{card.id}/block/", {"blocked": True, "password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(self.client.get("/api/customer/cards/").data[0]["is_blocked"])
+        self.client.post(f"/api/customer/cards/{card.id}/block/", {"blocked": False, "password": PASSWORD}, format="json")
+        self.assertFalse(Card.objects.get(pk=card.id).is_blocked)
+
+    def test_cannot_block_someone_elses_or_pending_card(self):
+        theirs = Card.objects.create(user=self.ravi, card_type="debit", status="approved", card_number="9401000000000026")
+        pending = Card.objects.create(user=self.asha, card_type="credit")
+        self.login("asha")
+        for c in (theirs, pending):
+            r = self.client.post(f"/api/customer/cards/{c.id}/block/", {"blocked": True, "password": PASSWORD}, format="json")
+            self.assertEqual(r.status_code, 400)
+
+    # ---- login activity
+    def test_login_activity_records_success_and_failure(self):
+        from .models import LoginActivity
+        self.client.post("/api/auth/login/", {"username": "asha", "password": "wrong-password"}, format="json")
+        self.login("asha")
+        rows = list(LoginActivity.objects.filter(user=self.asha).order_by("id"))
+        self.assertEqual([r.success for r in rows], [False, True])
+        data = self.client.get("/api/auth/login-activity/").data
+        self.assertEqual(len(data), 2)
+        self.assertIn(" on ", data[0]["device"])
+
+    def test_login_activity_is_private(self):
+        self.login("asha")
+        self.login("ravi")
+        for row in self.client.get("/api/auth/login-activity/").data:
+            self.assertNotEqual(row["id"], None)
+        from .models import LoginActivity
+        self.assertEqual(LoginActivity.objects.filter(user=self.asha).count(), 1)
+        self.assertEqual(len(self.client.get("/api/auth/login-activity/").data), 1)  # ravi sees only his own
+
+    def test_device_names(self):
+        from . import services
+        self.assertEqual(services.describe_device("Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537"), "Chrome on Windows")
+        self.assertEqual(services.describe_device("Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile Safari/537"), "Chrome on Android")
+        self.assertEqual(services.describe_device(""), "Unknown browser on unknown device")
+
+    # ---- audit log
+    def test_staff_actions_are_audited_and_only_admin_reads(self):
+        acc_id = self.asha.account.id
+        self.login("emp1")
+        self.client.patch(f"/api/employee/accounts/{acc_id}/limit/", {"daily_limit": "60000"}, format="json")
+        self.client.post(f"/api/employee/accounts/{acc_id}/reset-password/", {"new_password": "BrandNew#2468", "confirm_password": "BrandNew#2468", "employee_password": PASSWORD}, format="json")
+        self.assertEqual(self.client.get("/api/admin-panel/audit/").status_code, 403)
+        self.login("boss")
+        rows = self.client.get("/api/admin-panel/audit/").data["results"]
+        actions = [r["action"] for r in rows]
+        self.assertIn("daily_limit_changed", actions)
+        self.assertEqual(rows[0]["actor_name"], "emp1")
+        self.assertEqual(rows[0]["actor_role"], "employee")
+        filtered = self.client.get("/api/admin-panel/audit/", {"action": "daily_limit_changed"}).data
+        self.assertEqual(filtered["count"], 1)
+
+    def test_admin_actions_are_audited(self):
+        self.login("boss")
+        self.client.post(f"/api/admin-panel/users/{self.ravi.id}/toggle-active/")
+        rows = self.client.get("/api/admin-panel/audit/").data["results"]
+        self.assertEqual(rows[0]["action"], "user_blocked")

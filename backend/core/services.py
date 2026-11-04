@@ -5,10 +5,11 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, Card, Deposit, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, AuditLog, Card, Deposit, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
@@ -54,10 +55,18 @@ def perform_transfer(*, user, to_number, amount: Decimal, remark=""):
         raise BankError("Receiver account not found.")
     if not sender.is_active:
         raise BankError("Your account is blocked. Please contact the bank.")
+    if sender.is_frozen:
+        raise BankError("Your account is frozen. Unfreeze it in Profile > Update My Security to send money.")
     if not receiver.is_active:
         raise BankError("Receiver account is not active.")
     if sender.balance < amount:
         raise BankError("Insufficient balance.")
+    left = sender.daily_limit - transferred_today(sender)
+    if amount > left:
+        raise BankError(
+            f"This is over your daily transfer limit of Rs. {sender.daily_limit:,.0f}. "
+            f"You can still send Rs. {max(left, 0):,.0f} today."
+        )
 
     sender.balance -= amount
     receiver.balance += amount
@@ -445,6 +454,8 @@ def _lock_account(user):
         raise BankError("You do not have a bank account yet.")
     if not account.is_active:
         raise BankError("Your account is blocked. Please contact the bank.")
+    if account.is_frozen:
+        raise BankError("Your account is frozen. Unfreeze it in Profile > Update My Security first.")
     return account
 
 
@@ -559,3 +570,89 @@ def settle_matured_deposits(user=None, today=None):
             _pay_out(dep, account, payout, Deposit.Status.MATURED, f"{dep.get_kind_display()} {dep.reference} matured")
             done += 1
     return done
+
+
+# ------------------------------------------------------------------ security
+MIN_DAILY_LIMIT, MAX_DAILY_LIMIT = Decimal("1000"), Decimal("1000000")
+
+
+def transferred_today(account):
+    """Total the customer has sent today (completed transfers only; cancelled ones do not count)."""
+    start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    total = Transaction.objects.filter(
+        from_account=account, txn_type=Transaction.Type.TRANSFER,
+        status=Transaction.Status.COMPLETED, created_at__gte=start,
+    ).aggregate(t=Sum("amount"))["t"]
+    return total or Decimal("0")
+
+
+@transaction.atomic
+def set_daily_limit(*, account_id, limit: Decimal):
+    if not (MIN_DAILY_LIMIT <= limit <= MAX_DAILY_LIMIT):
+        raise BankError(
+            f"The daily limit must be between Rs. {MIN_DAILY_LIMIT:,.0f} and Rs. {MAX_DAILY_LIMIT:,.0f}."
+        )
+    try:
+        account = Account.objects.select_for_update().select_related("user").get(pk=account_id)
+    except Account.DoesNotExist:
+        raise BankError("Account not found.")
+    old = account.daily_limit
+    account.daily_limit = limit
+    account.save(update_fields=["daily_limit"])
+    return account, old
+
+
+@transaction.atomic
+def set_account_frozen(*, user, frozen: bool):
+    account = Account.objects.select_for_update().get(user=user)
+    account.is_frozen = frozen
+    account.save(update_fields=["is_frozen"])
+    return account
+
+
+@transaction.atomic
+def set_card_blocked(*, user, card_id, blocked: bool):
+    try:
+        card = Card.objects.select_for_update().get(pk=card_id, user=user)
+    except Card.DoesNotExist:
+        raise BankError("Card not found.")
+    if card.status != Card.Status.APPROVED:
+        raise BankError("Only an issued card can be blocked.")
+    card.is_blocked = blocked
+    card.save(update_fields=["is_blocked"])
+    return card
+
+
+def client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return (forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR", ""))[:45]
+
+
+def describe_device(user_agent):
+    ua = user_agent or ""
+    browser = next((n for k, n in [("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox/", "Firefox"),
+                                   ("Chrome/", "Chrome"), ("Safari/", "Safari")] if k in ua), "Unknown browser")
+    system = next((n for k, n in [("Android", "Android"), ("iPhone", "iPhone"), ("iPad", "iPad"),
+                                  ("Windows", "Windows"), ("Mac OS", "Mac"), ("Linux", "Linux")] if k in ua), "unknown device")
+    return f"{browser} on {system}"
+
+
+def record_login(request, user, success):
+    from .models import LoginActivity
+
+    LoginActivity.objects.create(
+        user=user, success=success, ip_address=client_ip(request),
+        device=describe_device(request.META.get("HTTP_USER_AGENT", "")),
+    )
+    old = LoginActivity.objects.filter(user=user).values_list("id", flat=True)[50:]  # keep the latest 50
+    if old:
+        LoginActivity.objects.filter(id__in=list(old)).delete()
+
+
+def audit(request, action, target="", details=""):
+    """Write one line in the staff audit log."""
+    actor = request.user
+    AuditLog.objects.create(
+        actor=actor, actor_name=actor.username, actor_role=actor.role, action=action,
+        target=str(target)[:200], details=str(details)[:500], ip_address=client_ip(request),
+    )

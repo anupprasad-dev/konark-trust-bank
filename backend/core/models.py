@@ -84,7 +84,9 @@ class Account(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="account")
     account_number = models.CharField(max_length=16, unique=True, editable=False)
     balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)  # the bank can block an account
+    is_frozen = models.BooleanField(default=False)  # the customer can freeze their own account
+    daily_limit = models.DecimalField(max_digits=12, decimal_places=2, default=200000)  # transfers per day
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -241,6 +243,7 @@ class Card(models.Model):
     expiry = models.DateField(null=True, blank=True)
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
+    is_blocked = models.BooleanField(default=False)  # the customer can block a lost card
     rejection_reason = models.CharField(max_length=255, blank=True)
     reviewed_by = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviewed_cards"
@@ -310,3 +313,35 @@ class Deposit(models.Model):
     @property
     def total_invested(self):
         return self.amount * self.installments_paid if self.kind == self.Kind.RECURRING else self.amount
+
+
+class LoginActivity(models.Model):
+    """Every login try for a known username: when, from where, with what device."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="login_activity")
+    success = models.BooleanField(default=True)
+    ip_address = models.CharField(max_length=45, blank=True)
+    device = models.CharField(max_length=120, blank=True)  # e.g. "Chrome on Windows"
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class AuditLog(models.Model):
+    """What staff did. Rows are only ever added, never edited."""
+
+    actor = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
+    actor_name = models.CharField(max_length=150)  # kept even if the user is deleted later
+    actor_role = models.CharField(max_length=10)
+    action = models.CharField(max_length=40, db_index=True)
+    target = models.CharField(max_length=200, blank=True)
+    details = models.CharField(max_length=500, blank=True)
+    ip_address = models.CharField(max_length=45, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.actor_name}: {self.action} {self.target}"
