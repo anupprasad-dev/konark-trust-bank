@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
-import QrScanner from "../../components/QrScanner.jsx";
+import QrScanButton from "../../components/QrScanButton.jsx";
 import { Alert, Avatar, Empty, Input, PageHeader, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -13,7 +13,6 @@ export default function Beneficiaries() {
   const [message, setMessage] = useState("");
   const [find, setFind] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -58,9 +57,10 @@ export default function Beneficiaries() {
             inputMode="numeric"
             required
           />
-          <button type="button" className="mt-2 text-sm font-bold text-brand-700 hover:underline" onClick={() => setScanning(true)}>
-            Scan QR code
-          </button>
+          <QrScanButton
+            className="mt-2.5 w-full"
+            onScan={(number) => setForm((f) => ({ ...f, account_number: number }))}
+          />
         </div>
         <Input label="Nickname (optional)" value={form.nickname} onChange={set("nickname")} error={errors.nickname} maxLength={40} />
         <div className="sm:pt-6">
@@ -114,12 +114,6 @@ export default function Beneficiaries() {
         </>
       ) : (
         !error && <div className="card"><Empty>No beneficiaries yet. Add an account number above to send money faster next time.</Empty></div>
-      )}
-      {scanning && (
-        <QrScanner
-          onClose={() => setScanning(false)}
-          onScan={(number) => setForm((f) => ({ ...f, account_number: number }))}
-        />
       )}
     </>
   );

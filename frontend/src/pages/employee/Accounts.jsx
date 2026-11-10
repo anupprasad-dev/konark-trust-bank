@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import {
@@ -13,11 +13,66 @@ function Icon({ name }) {
     edit: <><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>,
     key: <><circle cx="8" cy="15" r="3.5" /><path d="m10.5 12.5 8-8M15 8l2 2" /></>,
     trash: <><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" /></>,
+    limit: <><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z" /><path d="M9 12h6" /></>,
+    dots: <><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></>,
   };
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {paths[name]}
     </svg>
+  );
+}
+
+/** A "More" button with the less common actions, so the card is not full of buttons. */
+function MoreMenu({ items }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => !box.current?.contains(e.target) && setOpen(false);
+    const esc = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  return (
+    <div ref={box} className="relative ml-auto">
+      <button
+        type="button"
+        className="chip-slate"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <Icon name="dots" /> More
+      </button>
+      {open && (
+        <div role="menu" className="modal-backdrop absolute bottom-full right-0 z-30 mb-2 w-60 overflow-hidden rounded-xl bg-white py-1.5 shadow-xl ring-1 ring-slate-200 sm:bottom-auto sm:top-full sm:mb-0 sm:mt-2">
+          {items.map((item, i) => (
+            <div key={item.label}>
+              {item.danger && i > 0 && <div className="my-1 border-t border-slate-100" />}
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold transition ${
+                  item.danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+                }`}
+              >
+                <Icon name={item.icon} /> {item.label}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -91,62 +146,79 @@ export default function Accounts() {
             {search ? ` matching "${search}"` : ""}
           </p>
           <ul className="space-y-3">
-            {data.results.map((a) => (
-              <li key={a.id} className="card p-0 sm:p-0">
-                <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <Avatar name={a.holder_name || a.username} src={a.photo} className="h-14 w-14 text-lg" />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-semibold text-slate-900">{a.holder_name}</p>
-                        <Badge kind={a.is_active ? "active" : "blocked"}>{a.is_active ? "Active" : "Blocked"}</Badge>
+            {data.results.map((a) => {
+              const used = Number(a.transferred_today || 0);
+              const limit = Number(a.daily_limit || 0);
+              return (
+                <li key={a.id} className="card p-0 sm:p-0">
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3.5">
+                      <Avatar name={a.holder_name || a.username} src={a.photo} className="h-14 w-14 flex-none text-lg" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="truncate text-base font-extrabold text-slate-900">{a.holder_name}</p>
+                          <Badge kind={a.is_active ? "active" : "blocked"}>{a.is_active ? "Active" : "Blocked"}</Badge>
+                          {a.is_frozen && <Badge kind="pending">Frozen by customer</Badge>}
+                        </div>
+                        <p className="text-sm text-slate-500">@{a.username}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {a.phone || "No mobile"} &middot; {a.email || "No email"}
+                        </p>
                       </div>
-                      <p className="text-sm text-slate-500">@{a.username}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {a.phone || "No mobile"} &middot; DOB: {formatDay(a.date_of_birth)}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">{a.email}</p>
+                      <div className="hidden text-right sm:block">
+                        <p className="text-xs text-slate-500">Balance</p>
+                        <p className="num text-xl font-extrabold text-brand-700">{formatINR(a.balance)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-4">
+                      <div className="sm:hidden">
+                        <p className="text-xs text-slate-500">Balance</p>
+                        <p className="num font-extrabold text-brand-700">{formatINR(a.balance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Account no.</p>
+                        <p className="num break-all font-mono text-xs font-semibold text-slate-800 sm:text-sm">{a.account_number}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Date of birth</p>
+                        <p className="text-xs font-semibold text-slate-800 sm:text-sm">{formatDay(a.date_of_birth)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Opened</p>
+                        <p className="text-xs font-semibold text-slate-800 sm:text-sm">{formatDay(a.created_at)}</p>
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
+                        <p className="text-xs text-slate-500">Sent today / limit</p>
+                        <p className="num text-xs font-semibold text-slate-800 sm:text-sm">
+                          {formatINR(used)} / {formatINR(limit)}
+                        </p>
+                        <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-200">
+                          <div className="h-full rounded-full bg-brand-600" style={{ width: `${limit ? Math.min(100, (used / limit) * 100) : 0}%` }} />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <dl className="grid grid-cols-3 gap-4 rounded-xl bg-slate-50 p-3 text-sm lg:min-w-[26rem] lg:bg-transparent lg:p-0 lg:text-right">
-                    <div>
-                      <dt className="text-xs text-slate-500">Account no.</dt>
-                      <dd className="mt-0.5 break-all font-mono text-xs font-medium text-slate-800 sm:text-sm">{a.account_number}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-slate-500">Balance</dt>
-                      <dd className="mt-0.5 font-bold text-brand-700">{formatINR(a.balance)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-slate-500">Opened</dt>
-                      <dd className="mt-0.5 text-xs text-slate-700 sm:text-sm">{formatDate(a.created_at)}</dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 rounded-b-xl border-t border-slate-100 bg-slate-50/60 p-3 sm:flex sm:flex-wrap sm:px-5">
-                  <Link to={`/employee/accounts/${a.id}`} className="chip-brand">
-                    <Icon name="history" /> History
-                  </Link>
-                  <button className="chip-green" disabled={!a.is_active} onClick={() => setTarget(a)}>
-                    <Icon name="deposit" /> Deposit
-                  </button>
-                  <button className="chip-slate" onClick={() => setToEdit(a)}>
-                    <Icon name="edit" /> Edit details
-                  </button>
-                  <button className="chip-slate" onClick={() => setToLimit(a)}>
-                    <Icon name="shield" /> Limit {formatINR(a.daily_limit)}
-                  </button>
-                  <button className="chip-amber" onClick={() => setToReset(a)}>
-                    <Icon name="key" /> Reset password
-                  </button>
-                  <button className="chip-red col-span-2 sm:col-span-1 sm:ml-auto" onClick={() => setToDelete(a)}>
-                    <Icon name="trash" /> Delete
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-5">
+                    <Link to={`/employee/accounts/${a.id}`} className="chip-brand flex-1 justify-center sm:flex-none">
+                      <Icon name="history" /> History
+                    </Link>
+                    <button className="chip-green flex-1 justify-center sm:flex-none" disabled={!a.is_active} onClick={() => setTarget(a)}>
+                      <Icon name="deposit" /> Deposit
+                    </button>
+                    <MoreMenu
+                      items={[
+                        { label: "Edit details", icon: "edit", onClick: () => setToEdit(a) },
+                        { label: `Daily limit (${formatINR(a.daily_limit)})`, icon: "limit", onClick: () => setToLimit(a) },
+                        { label: "Reset password", icon: "key", onClick: () => setToReset(a) },
+                        { label: "Delete account", icon: "trash", danger: true, onClick: () => setToDelete(a) },
+                      ]}
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <Pagination page={page} count={data.count} onPage={setPage} />
         </>

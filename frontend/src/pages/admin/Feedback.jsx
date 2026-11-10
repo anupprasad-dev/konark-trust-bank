@@ -1,10 +1,11 @@
 import { useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
 import { Alert, Empty, formatDate, PageHeader, Pagination, Spinner } from "../../components/ui.jsx";
+import { LEVEL_COLORS } from "../../components/RatingForm.jsx";
 import { useApi } from "../../hooks";
 
 const Stars = ({ n }) => (
-  <span className="whitespace-nowrap text-base tracking-tight text-sun-500" aria-label={`${n} out of 5`}>
+  <span className="whitespace-nowrap text-base tracking-tight" style={{ color: LEVEL_COLORS[n] }} aria-label={`${n} out of 5`}>
     {"★".repeat(n)}<span className="text-slate-300">{"★".repeat(5 - n)}</span>
   </span>
 );

@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
 import RatingForm from "./RatingForm.jsx";
-import { getTheme, saveTheme } from "../theme";
+import IdleGuard from "./IdleGuard.jsx";
+import { applyTheme, getTheme, saveTheme } from "../theme";
 import { Avatar, Modal, Spinner } from "./ui.jsx";
 
 /** Shared page frame (sidebar on desktop, top bar on phones) for all three dashboards. */
@@ -21,14 +22,20 @@ export default function Layout({ roleLabel, links, profileTo }) {
   }, []);
 
   const [rating, setRating] = useState(false);
-  const [theme, setTheme] = useState(getTheme);
+  const [theme, setTheme] = useState(() => getTheme(user?.username));
+
+  // Dark mode is this user's choice and only lives inside the dashboard: when they leave, the website is light again.
+  useEffect(() => {
+    applyTheme(getTheme(user?.username));
+    return () => applyTheme("light");
+  }, [user?.username]);
   const flipTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     // fade the colours instead of snapping
     const root = document.documentElement;
     root.classList.add("theme-fade");
     setTimeout(() => root.classList.remove("theme-fade"), 500);
-    saveTheme(next);
+    saveTheme(user?.username, next);
     setTheme(next);
   };
   const themeButton = (
@@ -150,6 +157,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
         ))}
       </nav>
 
+      <IdleGuard />
       {rating && (
         <Modal title="Rate our service" onClose={() => setRating(false)}>
           <p className="mb-4 text-sm text-slate-600">

@@ -17,25 +17,46 @@ const ACCESS = "ktb_access";
 const REFRESH = "ktb_refresh";
 const USER = "ktb_user";
 
+// The login lives in sessionStorage: it belongs to ONE browser tab and disappears when the tab is closed.
+// A new tab (or a new visit) always has to log in again, like a real net banking site.
+const store = sessionStorage;
+for (const key of [ACCESS, REFRESH, USER]) {
+  try {
+    localStorage.removeItem(key); // older versions kept the login here, which stayed forever
+  } catch {
+    /* storage can be blocked */
+  }
+}
+
 export const tokens = {
-  access: () => localStorage.getItem(ACCESS),
-  refresh: () => localStorage.getItem(REFRESH),
+  access: () => store.getItem(ACCESS),
+  refresh: () => store.getItem(REFRESH),
   user: () => {
     try {
-      return JSON.parse(localStorage.getItem(USER));
+      return JSON.parse(store.getItem(USER));
     } catch {
       return null;
     }
   },
   save: (access, refresh, user) => {
-    if (access) localStorage.setItem(ACCESS, access);
-    if (refresh) localStorage.setItem(REFRESH, refresh);
-    if (user) localStorage.setItem(USER, JSON.stringify(user));
+    if (access) store.setItem(ACCESS, access);
+    if (refresh) store.setItem(REFRESH, refresh);
+    if (user) store.setItem(USER, JSON.stringify(user));
   },
   clear: () => {
-    localStorage.removeItem(ACCESS);
-    localStorage.removeItem(REFRESH);
-    localStorage.removeItem(USER);
+    store.removeItem(ACCESS);
+    store.removeItem(REFRESH);
+    store.removeItem(USER);
+  },
+};
+
+/** A message the login page shows once (for example "logged out because you were idle"). */
+export const notice = {
+  set: (text) => store.setItem("ktb_notice", text),
+  take: () => {
+    const text = store.getItem("ktb_notice") || "";
+    store.removeItem("ktb_notice");
+    return text;
   },
 };
 
@@ -62,6 +83,7 @@ api.interceptors.response.use(
         return api(original);
       } catch {
         tokens.clear();
+        notice.set("Your session ended. Please log in again.");
         window.location.href = "/login";
       }
     }

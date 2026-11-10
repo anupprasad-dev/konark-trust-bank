@@ -1,4 +1,5 @@
 const PATHS = {
+  qr: <><rect x="3.500" y="3.500" width="6" height="6" rx="1" /><rect x="14.500" y="3.500" width="6" height="6" rx="1" /><rect x="3.500" y="14.500" width="6" height="6" rx="1" /><path d="M14.500 14.500h2.500v2.500h-2.500zM19 14.500v.01M14.500 19.500v.01M17 19.500h3.500M20.500 17v3.500" /></>,
   home: <><path d="M4 11l8-7 8 7v9H4z" /><path d="M10 20v-6h4v6" /></>,
   send: <path d="M4 8h14m0 0-4-4m4 4-4 4M20 16H6m0 0 4-4m-4 4 4 4" />,
   history: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,

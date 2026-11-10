@@ -102,14 +102,34 @@ export default function QrScanner({ onScan, onClose }) {
     <Modal title="Scan account QR code" onClose={onClose}>
       <div className="space-y-4">
         <Alert>{error}</Alert>
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900">
+
+        {/* camera view: dark frame, four corners and a line that moves up and down */}
+        <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-3xl bg-slate-950 shadow-inner ring-1 ring-slate-800">
           <video ref={video} className="h-full w-full object-cover" playsInline muted />
-          {starting && <p className="absolute inset-0 flex items-center justify-center text-sm text-white/70">Opening camera...</p>}
-          <span className="pointer-events-none absolute inset-8 rounded-2xl border-2 border-white/70" aria-hidden="true" />
+          {starting && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+              <p className="text-sm">Opening camera...</p>
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_999px_rgba(2,6,23,0.35)]" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-[14%]" aria-hidden="true">
+            <span className="absolute left-0 top-0 h-9 w-9 rounded-tl-2xl border-l-4 border-t-4 border-sun-400" />
+            <span className="absolute right-0 top-0 h-9 w-9 rounded-tr-2xl border-r-4 border-t-4 border-sun-400" />
+            <span className="absolute bottom-0 left-0 h-9 w-9 rounded-bl-2xl border-b-4 border-l-4 border-sun-400" />
+            <span className="absolute bottom-0 right-0 h-9 w-9 rounded-br-2xl border-b-4 border-r-4 border-sun-400" />
+            {!starting && !error && <span className="scan-line absolute inset-x-2 h-0.5 rounded-full bg-sun-400 shadow-[0_0_12px_2px_rgba(251,191,36,0.8)]" />}
+          </div>
         </div>
-        <p className="text-center text-xs text-slate-500">Point the camera at the QR code. Nothing is saved or sent.</p>
-        <label className="btn-outline w-full cursor-pointer">
-          Upload a picture instead
+
+        <p className="text-center text-sm font-semibold text-slate-700">Keep the QR code inside the frame</p>
+        <p className="-mt-3 text-center text-xs text-slate-500">It is read on your phone only. Nothing is saved or sent.</p>
+
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
+        </div>
+        <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700">
+          Upload a picture of the QR code
           <input type="file" accept="image/*" className="sr-only" onChange={fromPicture} />
         </label>
       </div>

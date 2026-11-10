@@ -137,8 +137,10 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    # Short sessions, like net banking. The browser also logs out after 10 idle minutes (see IdleGuard.jsx).
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "REFRESH_TOKEN_LIFETIME": timedelta(minutes=30),
+    "ROTATE_REFRESH_TOKENS": True,  # every refresh hands out a new refresh token, so active use keeps the session
 }
 
 # ---------------------------------------------------------------- CORS / CSRF

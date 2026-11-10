@@ -55,6 +55,7 @@ export default function Profile() {
   const [tab, setTab] = useState("profile");
   const [thanks, setThanks] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showCif, setShowCif] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -123,7 +124,18 @@ export default function Profile() {
           <Avatar name={data.full_name || data.username} src={data.photo} className="h-24 w-24 bg-white text-3xl text-brand-700 ring-4 ring-white/60" />
           <div className="min-w-0 flex-1">
             <p className="break-words text-2xl font-extrabold uppercase tracking-tight">{data.full_name || data.username}</p>
-            <p className="num mt-0.5 text-sm text-brand-100">CIF: {maskCif(data.cif)}</p>
+            <p className="num mt-0.5 flex items-center justify-center gap-1.5 text-sm text-brand-100 sm:justify-start">
+              CIF: {showCif ? data.cif : maskCif(data.cif)}
+              <button
+                type="button"
+                onClick={() => setShowCif(!showCif)}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-brand-200 hover:bg-white/15 hover:text-white"
+                aria-label={showCif ? "Hide CIF number" : "Show CIF number"}
+                aria-pressed={showCif}
+              >
+                <Icon name={showCif ? "eyeOff" : "eye"} className="h-3 w-3" />
+              </button>
+            </p>
             <p className="mt-0.5 text-xs text-brand-200">
               Last login {data.last_login ? formatDate(data.last_login) : "- this is your first login"}
             </p>

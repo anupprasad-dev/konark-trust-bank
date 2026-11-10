@@ -3,7 +3,10 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
 import BrandLogo from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
+import { notice as sessionNotice } from "../api";
 import { Alert, Input, PasswordInput } from "../components/ui.jsx";
+
+const takeNotice = () => sessionNotice.take();
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
 const FEATURES = [
@@ -342,7 +345,7 @@ export default function AuthPage() {
   const [params] = useSearchParams();
   const staff = params.get("portal") === "staff";
   const [mode, setMode] = useState(!staff && params.get("mode") === "register" ? "register" : "login");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(() => takeNotice());
 
   if (!checking && user) return <Navigate to={homePath(user.role)} replace />;
 
