@@ -1,24 +1,59 @@
 # Konark Trust Bank
-**Live demo:** https://konark-trust-bank.netlify.app
-(Hosted on free tier: first load may take up to a minute.)
-A full-stack internet-banking web application built as a portfolio project.
 
+[![CI](https://github.com/anupprasad-dev/konark-trust-bank/actions/workflows/ci.yml/badge.svg)](https://github.com/anupprasad-dev/konark-trust-bank/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)
+
+A full-stack internet-banking web application built as a portfolio project.
 
 > **Disclaimer:** Konark Trust Bank is a fictional bank created for learning and demonstration.
 > It is not affiliated with any real bank. Do not enter real personal or financial data.
 
+## Live demo
+
+| | Link |
+|---|---|
+| Website | **https://konark-trust-bank.netlify.app/** |
+| API docs (Swagger) | **https://konark-trust-bank.onrender.com/api/docs/** |
+
+> The backend runs on a free Render plan and sleeps when idle, so the first request can take about 30 seconds.
+> Demo logins are listed in [Demo logins](#demo-logins-after-seed_demo). Please use test data only.
+
+## Screenshots
+
+| Customer dashboard | Fund transfer |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Transfer](docs/screenshots/transfer.png) |
+| **Cards and deposits** | **Employee: customer accounts** |
+| ![Cards](docs/screenshots/cards.png) | ![Employee](docs/screenshots/employee.png) |
+| **Dark mode** | **Phone layout** |
+| ![Dark](docs/screenshots/dark.png) | ![Mobile](docs/screenshots/mobile.png) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[Browser<br/>React + Vite + Tailwind<br/>Netlify] -- "HTTPS + JWT" --> A[Django REST API<br/>Render]
+    A --> S[services.py<br/>atomic money logic]
+    S --> D[(PostgreSQL<br/>Neon)]
+    A -. photos .-> C[Cloudinary]
+    A --> P[PDF statements<br/>ReportLab]
+```
+
+**Request flow:** the React app keeps its JWT in `sessionStorage` (one login per browser tab) and the API checks a
+session id inside the token, so one user can have only one live login. Every view is limited by role
+(customer / employee / admin) and every money movement goes through `services.py`.
+
 **Stack:** React · Tailwind CSS · Django · Django REST Framework · PostgreSQL · JWT
 
-## 🔑 Live Credentials
+**Highlights:** atomic transfers with row locking · fixed and recurring deposits · debit cards with block/unblock ·
+QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
+one live login per user and 10-minute idle logout · per-user dark mode · phone-friendly layout ·
+Swagger API docs · automated tests and CI.
 
-Try the live application using the demo accounts below.
-
-| Role |         Username    | Password |
-|------|----------------------------|------------------|
-| Employee | `sunitamohanty` | `Mohanty@09` |
-| Customer | `2306anup` | `Sonu@12345` |
-
-**Note:** These are public demo credentials for portfolio demonstration only. Do not use real personal or financial information. Access and account availability may change.
+---
 
 ## Features
 
@@ -170,13 +205,17 @@ python manage.py test
 
 The tests cover registration, approval and rejection, atomic transfers
 (including insufficient balance and invalid input), history filters,
-beneficiaries, and permissions between the three roles.
+beneficiaries, and permissions between the three roles, plus cards, deposits, security limits and the
+one-live-login rule. GitHub Actions runs the same tests on PostgreSQL, checks migrations and builds the frontend on every push.
 
 ---
 
 ## API overview
 
 All endpoints are under `/api/`. Authenticated calls send `Authorization: Bearer <access token>`.
+
+**Interactive docs:** `/api/docs/` (Swagger UI, press *Authorize* and paste the access token) and `/api/redoc/`.
+The raw OpenAPI file is at `/api/schema/`.
 
 | Method | Endpoint | Who |
 |--------|----------|-----|
@@ -239,7 +278,4 @@ GitHub Actions CI running the tests, a multi-threaded test for concurrent transf
 
 ## Author
 
-Built by **Anup Prasad** as a full-stack Python Developer.
-
-- GitHub: https://github.com/anupprasad-dev
-- LinkedIn: https://www.linkedin.com/in/anupprasad-dev
+Built by *Your Name* as a full-stack Python portfolio project. (Add your name, GitHub and LinkedIn here.)

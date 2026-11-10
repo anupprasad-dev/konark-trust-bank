@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     # third party
     "rest_framework",
     "corsheaders",
+    "drf_spectacular",
     # local
     "core",
 ]
@@ -131,9 +132,23 @@ REST_FRAMEWORK = {
         "core.authentication.SessionJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_THROTTLE_RATES": {"auth": "30/min"},
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Konark Trust Bank API",
+    "DESCRIPTION": (
+        "REST API of the Konark Trust Bank demo (fictional bank).\n\n"
+        "Log in at `POST /api/auth/login/`, copy the `access` token, press **Authorize** "
+        "and paste it as `Bearer <token>`. Customer, employee and admin endpoints need the matching role."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
 # One live login per user (see core/authentication.py). Tests switch it off unless they test it.
