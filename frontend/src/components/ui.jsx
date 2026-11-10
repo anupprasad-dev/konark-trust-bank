@@ -24,13 +24,16 @@ export function Spinner({ label = "Loading..." }) {
     return () => clearTimeout(t);
   }, []);
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-slate-500" role="status">
-      <div className="flex items-center gap-3">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-100 border-t-brand-600" />
-        {label}
+    <div className="flex flex-col gap-3 py-4" role="status" aria-label={label}>
+      <div className="skeleton h-24 w-full" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="skeleton h-16" />
+        <div className="skeleton h-16" />
       </div>
+      <div className="skeleton h-40 w-full" />
+      <span className="sr-only">{label}</span>
       {slow && (
-        <p className="max-w-xs px-4 text-center text-xs text-slate-400">
+        <p className="max-w-xs self-center px-4 text-center text-xs text-slate-400">
           The bank server is waking up. This can take up to a minute the first time. Please wait.
         </p>
       )}
@@ -238,8 +241,8 @@ export function Modal({ title, onClose, children }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
-      <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
+      <div className="modal-panel max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="text-2xl leading-none text-slate-400 hover:text-slate-600" aria-label="Close">

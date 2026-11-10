@@ -101,7 +101,7 @@
   }
 
   .card {
-    animation: page-in 0.35s ease-out both;
+    animation: page-in 0.4s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
     @apply rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,35,80,0.04)] sm:p-5;
   }
 }
@@ -166,3 +166,53 @@ html.dark { color-scheme: dark; }
 .dark table thead { background-color: #0e1729; }
 .dark tbody tr { border-color: #223050; }
 .dark .shadow-sm, .dark .shadow-md { --tw-shadow-color: rgba(0, 0, 0, 0.5); }
+
+
+/* ================================================================== motion */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.page-enter { animation: page-enter 0.34s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+
+/* cards come in one after the other */
+.card:nth-child(2) { animation-delay: 0.05s; }
+.card:nth-child(3) { animation-delay: 0.1s; }
+.card:nth-child(4) { animation-delay: 0.15s; }
+.card:nth-child(n + 5) { animation-delay: 0.2s; }
+
+/* clickable cards lift a little */
+a.card, button.card { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
+a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px -10px rgba(15, 40, 100, 0.28); }
+.btn:active, .chip:active { transform: scale(0.97); }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-up { from { opacity: 0; transform: translateY(48px); } to { opacity: 1; transform: none; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(0.95); } to { opacity: 1; transform: none; } }
+.modal-backdrop { animation: fade-in 0.2s ease-out both; }
+.modal-panel { animation: modal-up 0.32s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+@media (min-width: 640px) { .modal-panel { animation-name: modal-pop; } }
+
+@keyframes icon-pop { from { transform: rotate(-120deg) scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+.animate-icon-pop { animation: icon-pop 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+
+/* light <-> dark: colours fade for half a second instead of snapping */
+.theme-fade, .theme-fade *, .theme-fade *::before, .theme-fade *::after {
+  transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease, fill 0.45s ease, stroke 0.45s ease !important;
+}
+
+/* loading placeholder (replaces the spinner) */
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.skeleton {
+  border-radius: 1rem;
+  background: linear-gradient(90deg, #e7ecf5 25%, #f4f7fc 40%, #e7ecf5 65%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease infinite;
+}
+.dark .skeleton { background: linear-gradient(90deg, #15203a 25%, #1f2e52 40%, #15203a 65%); background-size: 400% 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter, .modal-backdrop, .modal-panel, .animate-icon-pop, .skeleton { animation: none !important; }
+  .theme-fade, .theme-fade * { transition: none !important; }
+  a.card:hover, button.card:hover { transform: none; }
+}

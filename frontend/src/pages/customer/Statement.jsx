@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api, { errorMessage } from "../../api";
 import Icon from "../../components/icons.jsx";
-import { Alert, Input, PageHeader } from "../../components/ui.jsx";
+import { Alert, Input, PageHeader, PasswordInput } from "../../components/ui.jsx";
 
 const iso = (date) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -20,7 +20,8 @@ async function readError(err) {
   if (data instanceof Blob) {
     try {
       const body = JSON.parse(await data.text());
-      return body.detail || "Could not create the statement.";
+      const first = Object.values(body).find((v) => v);
+      return body.detail || (Array.isArray(first) ? first[0] : first) || "Could not create the statement.";
     } catch {
       return "Could not create the statement.";
     }
@@ -31,6 +32,7 @@ async function readError(err) {
 export default function Statement() {
   const [from, setFrom] = useState(daysAgo(30));
   const [to, setTo] = useState(iso(new Date()));
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,10 +43,11 @@ export default function Statement() {
     setDone("");
     setBusy(true);
     try {
-      const response = await api.get("/customer/statement/", {
-        params: { ...(from && { date_from: from }), ...(to && { date_to: to }) },
-        responseType: "blob",
-      });
+      const response = await api.post(
+        "/customer/statement/",
+        { password, ...(from && { date_from: from }), ...(to && { date_to: to }) },
+        { responseType: "blob" }
+      );
       const header = response.headers["content-disposition"] || "";
       const match = header.match(/filename="?([^";]+)"?/);
       const filename = match ? match[1] : "statement.pdf";
@@ -58,6 +61,7 @@ export default function Statement() {
       link.remove();
       URL.revokeObjectURL(url);
       setDone(`Your statement (${filename}) was downloaded.`);
+      setPassword("");
     } catch (err) {
       setError(await readError(err));
     } finally {
@@ -101,6 +105,15 @@ export default function Statement() {
           <Input label="From date" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
           <Input label="To date" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
         </div>
+
+        <PasswordInput
+          label="Confirm with your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          hint="Needed to open your statement. Use the eye button to see what you typed."
+          required
+        />
 
         <button className="btn-primary w-full" disabled={busy}>
           {busy ? "Preparing PDF..." : "Download statement (PDF)"}

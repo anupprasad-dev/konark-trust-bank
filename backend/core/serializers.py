@@ -589,6 +589,19 @@ class OpenDepositSerializer(serializers.Serializer):
         return value
 
 
+class StatementRequestSerializer(serializers.Serializer):
+    """Opening a statement needs the account password, like a transfer does."""
+
+    password = serializers.CharField(write_only=True)
+    date_from = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    date_to = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+
 class QuoteSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=Deposit.Kind.choices)
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)

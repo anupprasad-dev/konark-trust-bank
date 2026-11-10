@@ -19,7 +19,7 @@ from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, 
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
-    ApproveSerializer, AuditLogSerializer, BillPaymentSerializer, PayBillSerializer, BlockCardSerializer, CardSerializer, DailyLimitSerializer,
+    ApproveSerializer, AuditLogSerializer, StatementRequestSerializer, BillPaymentSerializer, PayBillSerializer, BlockCardSerializer, CardSerializer, DailyLimitSerializer,
     FreezeSerializer, LoginActivitySerializer, OpenDepositSerializer, TermDepositSerializer,
     PasswordConfirmSerializer, QuoteSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
@@ -194,14 +194,20 @@ def _parse_day(raw):
 
 
 class StatementView(APIView):
-    """Download the account statement as a PDF.  ?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD (both optional)"""
+    """Download the account statement as a PDF.
+
+    POST {password, date_from?, date_to?} (dates as YYYY-MM-DD). It is a POST so the password never
+    sits in the URL, and the password has to be right before any PDF is made.
+    """
 
     permission_classes = [IsCustomer]
 
-    def get(self, request):
+    def post(self, request):
+        serializer = StatementRequestSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
         try:
-            date_from = _parse_day(request.query_params.get("date_from"))
-            date_to = _parse_day(request.query_params.get("date_to"))
+            date_from = _parse_day(serializer.validated_data.get("date_from"))
+            date_to = _parse_day(serializer.validated_data.get("date_to"))
         except ValueError:
             return _bad("Dates must be in YYYY-MM-DD format.")
         if date_from and date_to and date_from > date_to:

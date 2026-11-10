@@ -463,7 +463,7 @@ class StatementTests(BankTestBase):
              "remark": "R&D <test>", "password": PASSWORD},
             format="json",
         )
-        response = self.client.get("/api/customer/statement/")
+        response = self.client.post("/api/customer/statement/", {"password": PASSWORD}, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn("attachment", response["Content-Disposition"])
@@ -492,17 +492,30 @@ class StatementTests(BankTestBase):
         self.assertEqual(later["closing"], Decimal("749.50"))
 
     def test_statement_validation_and_permissions(self):
+        url = "/api/customer/statement/"
         self.login("alice")
-        self.assertEqual(self.client.get("/api/customer/statement/?date_from=banana").status_code, 400)
-        self.assertEqual(
-            self.client.get("/api/customer/statement/?date_from=2026-02-01&date_to=2026-01-01").status_code, 400
-        )
-        self.assertEqual(self.client.get("/api/customer/statement/?date_from=2026-01-01&date_to=2026-12-31").status_code, 200)
+
+        def ask(**body):
+            return self.client.post(url, {"password": PASSWORD, **body}, format="json")
+
+        self.assertEqual(ask(date_from="banana").status_code, 400)
+        self.assertEqual(ask(date_from="2026-02-01", date_to="2026-01-01").status_code, 400)
+        self.assertEqual(ask(date_from="2026-01-01", date_to="2026-12-31").status_code, 200)
         self.logout()
         self.login("emp1")
-        self.assertEqual(self.client.get("/api/customer/statement/").status_code, 403)
+        self.assertEqual(self.client.post(url, {"password": PASSWORD}, format="json").status_code, 403)
         self.logout()
-        self.assertEqual(self.client.get("/api/customer/statement/").status_code, 401)
+        self.assertEqual(self.client.post(url, {"password": PASSWORD}, format="json").status_code, 401)
+
+    def test_statement_needs_the_right_password(self):
+        url = "/api/customer/statement/"
+        self.login("alice")
+        for body in ({}, {"password": ""}, {"password": "wrong-password"}):
+            r = self.client.post(url, body, format="json")
+            self.assertEqual(r.status_code, 400, body)
+            self.assertIn("password", r.data)
+        # the old way (a GET with no password) is gone
+        self.assertEqual(self.client.get(url).status_code, 405)
 
 
 class EmployeeSeesHistoryTests(BankTestBase):

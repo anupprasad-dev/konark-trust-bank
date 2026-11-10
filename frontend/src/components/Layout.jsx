@@ -1,21 +1,33 @@
-import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Suspense, useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
 import RatingForm from "./RatingForm.jsx";
 import { getTheme, saveTheme } from "../theme";
-import { Avatar, Modal } from "./ui.jsx";
+import { Avatar, Modal, Spinner } from "./ui.jsx";
 
 /** Shared page frame (sidebar on desktop, top bar on phones) for all three dashboards. */
 export default function Layout({ roleLabel, links, profileTo }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Once the dashboard is on screen, quietly download every other page, so clicking a menu item is instant.
+  useEffect(() => {
+    const load = () => Object.values(import.meta.glob("../pages/**/*.jsx")).forEach((fn) => fn().catch(() => {}));
+    const id = "requestIdleCallback" in window ? window.requestIdleCallback(load, { timeout: 4000 }) : setTimeout(load, 1500);
+    return () => ("cancelIdleCallback" in window ? window.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
 
   const [rating, setRating] = useState(false);
   const [theme, setTheme] = useState(getTheme);
   const flipTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
+    // fade the colours instead of snapping
+    const root = document.documentElement;
+    root.classList.add("theme-fade");
+    setTimeout(() => root.classList.remove("theme-fade"), 500);
     saveTheme(next);
     setTheme(next);
   };
@@ -26,7 +38,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
     >
-      <Icon name={theme === "dark" ? "sun" : "moon"} className="h-5 w-5" />
+      <Icon key={theme} name={theme === "dark" ? "sun" : "moon"} className="h-5 w-5 animate-icon-pop" />
     </button>
   );
 
@@ -139,7 +151,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
       </nav>
 
       {rating && (
-        <Modal title="Rate our service" onClose={finishLogout}>
+        <Modal title="Rate our service" onClose={() => setRating(false)}>
           <p className="mb-4 text-sm text-slate-600">
             How was your experience with Konark Trust Bank today? You can skip this and log out.
           </p>
@@ -149,7 +161,11 @@ export default function Layout({ roleLabel, links, profileTo }) {
 
       <main className="flex-1 md:ml-64">
         <div className="mx-auto max-w-5xl px-4 pb-6 pt-2 md:px-8 md:py-9">
-          <Outlet />
+          <Suspense fallback={<Spinner />}>
+            <div key={location.pathname} className="page-enter">
+              <Outlet />
+            </div>
+          </Suspense>
         </div>
         <p className="px-4 pb-6 text-center text-xs text-slate-400">
           Konark Trust Bank &middot; Please never share your password with anyone.
