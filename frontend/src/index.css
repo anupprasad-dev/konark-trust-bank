@@ -221,3 +221,12 @@ a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: 0 8px
 @keyframes scan-sweep { 0%, 100% { top: 4%; } 50% { top: 94%; } }
 .scan-line { animation: scan-sweep 2.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .scan-line { animation: none; top: 50%; } }
+
+/* public pages: soft arrival, and a gentle swap between login and register */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(18px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes swap-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fade-in 0.45s ease both; }
+.auth-card { animation: rise-in 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) both; transition: max-width 0.3s ease; }
+.form-swap { animation: swap-in 0.32s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) { .fade-in, .auth-card, .form-swap { animation: none !important; } }

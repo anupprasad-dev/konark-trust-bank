@@ -10,6 +10,8 @@ from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from . import authentication
+
 from . import photos
 from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
 
@@ -104,6 +106,7 @@ class LoginSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         token["role"] = user.role
         token["username"] = user.username
+        token["sid"] = user.session_key  # which login these tokens belong to (see authentication.py)
         return token
 
     def validate(self, attrs):
@@ -114,6 +117,12 @@ class LoginSerializer(TokenObtainPairSerializer):
             raise PermissionDenied("Employees and admins must use Staff Login.")
         if portal == "staff" and self.user.role == Role.CUSTOMER:
             raise PermissionDenied("Customers must use Personal Banking Login.")
+        if authentication.single_session_on():
+            if authentication.session_is_live(self.user):
+                raise authentication.AlreadyLoggedIn()
+            authentication.start_session(self.user)
+            refresh = self.get_token(self.user)  # again, now that it carries the new login id
+            data["refresh"], data["access"] = str(refresh), str(refresh.access_token)
         # remember the login before this one, so Profile can show "Last login"
         self.user.previous_login = self.user.last_login
         self.user.last_login = timezone.now()

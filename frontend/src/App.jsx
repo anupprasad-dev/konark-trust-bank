@@ -38,33 +38,33 @@ function Landing() {
   const { user, checking } = useAuth();
   if (checking) return <Spinner />;
   if (user) return <Navigate to={homePath(user.role)} replace />;
-  return <Home />;
+  return <div className="fade-in"><Home /></div>;
 }
 
 const customerLinks = [
-  { to: "/customer", label: "Dashboard", end: true, icon: "home" },
-  { to: "/customer/transfer", label: "Fund Transfer", icon: "send" },
-  { to: "/customer/history", label: "Transaction History", icon: "history" },
-  { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
-  { to: "/customer/statement", label: "Account Statement", icon: "statement" },
-  { to: "/customer/bills", label: "Pay Bills", icon: "calendar" },
-  { to: "/customer/deposits", label: "Deposits", icon: "chart" },
-  { to: "/customer/cards", label: "Cards", icon: "card" },
+  { to: "/customer", label: "Dashboard", short: "Home", end: true, icon: "home", mobile: true },
+  { to: "/customer/transfer", label: "Fund Transfer", short: "Transfer", icon: "send", mobile: true },
+  { to: "/customer/history", label: "Transaction History", short: "History", icon: "history", mobile: true },
+  { to: "/customer/beneficiaries", label: "Beneficiaries", short: "People", icon: "users" },
+  { to: "/customer/statement", label: "Account Statement", short: "Statement", icon: "statement" },
+  { to: "/customer/bills", label: "Pay Bills", short: "Bills", icon: "calendar" },
+  { to: "/customer/deposits", label: "Deposits", short: "Deposits", icon: "chart" },
+  { to: "/customer/cards", label: "Cards", short: "Cards", icon: "card", mobile: true },
 ];
 
 const employeeLinks = [
-  { to: "/employee", label: "Registration Requests", end: true, icon: "inbox" },
-  { to: "/employee/accounts", label: "Customer Accounts", icon: "wallet" },
-  { to: "/employee/cards", label: "Card Requests", icon: "card" },
+  { to: "/employee", label: "Registration Requests", short: "Requests", end: true, icon: "inbox" },
+  { to: "/employee/accounts", label: "Customer Accounts", short: "Accounts", icon: "wallet" },
+  { to: "/employee/cards", label: "Card Requests", short: "Cards", icon: "card" },
 ];
 
 const adminLinks = [
-  { to: "/admin", label: "Overview", end: true, icon: "chart" },
-  { to: "/admin/employees", label: "Employees", icon: "shield" },
-  { to: "/admin/customers", label: "Customers", icon: "users" },
-  { to: "/admin/transactions", label: "All Transactions", icon: "ledger" },
-  { to: "/admin/audit", label: "Audit log", icon: "shield" },
-  { to: "/admin/feedback", label: "Feedback", icon: "mail" },
+  { to: "/admin", label: "Overview", short: "Overview", end: true, icon: "chart", mobile: true },
+  { to: "/admin/employees", label: "Employees", short: "Staff", icon: "shield", mobile: true },
+  { to: "/admin/customers", label: "Customers", short: "Customers", icon: "users", mobile: true },
+  { to: "/admin/transactions", label: "All Transactions", short: "Txns", icon: "ledger", mobile: true },
+  { to: "/admin/audit", label: "Audit log", short: "Audit", icon: "shield" },
+  { to: "/admin/feedback", label: "Feedback", short: "Feedback", icon: "mail" },
 ];
 
 export default function App() {

@@ -128,13 +128,16 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ---------------------------------------------------------------- DRF / JWT
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "core.authentication.SessionJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_THROTTLE_RATES": {"auth": "30/min"},
 }
+
+# One live login per user (see core/authentication.py). Tests switch it off unless they test it.
+SINGLE_SESSION = config("SINGLE_SESSION", default=True, cast=bool)
 
 SIMPLE_JWT = {
     # Short sessions, like net banking. The browser also logs out after 10 idle minutes (see IdleGuard.jsx).

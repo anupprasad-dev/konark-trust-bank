@@ -30,6 +30,8 @@ class User(AbstractUser):
     photo_url = models.CharField(max_length=500, blank=True)       # link to the photo (Cloudinary)
     photo_public_id = models.CharField(max_length=200, blank=True)  # needed to delete it again
     previous_login = models.DateTimeField(null=True, blank=True)    # the login before this one, shown on Profile
+    session_key = models.CharField(max_length=32, blank=True)       # the ONE live login (tab/device) of this user
+    session_seen = models.DateTimeField(null=True, blank=True)      # last time that login was used
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CUSTOMER)
 
     objects = BankUserManager()

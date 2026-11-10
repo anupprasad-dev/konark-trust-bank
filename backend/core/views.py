@@ -11,7 +11,9 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from . import authentication
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
@@ -405,6 +407,7 @@ class ResetCustomerPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         customer.set_password(serializer.validated_data["new_password"])
         customer.save(update_fields=["password"])
+        authentication.end_session(customer)  # the old password's login stops working
         services.audit(request, "password_reset", f"@{customer.username}")
         return Response({
             "detail": f"Password changed for {customer.display_name} (@{customer.username}). "
@@ -544,6 +547,7 @@ class AdminToggleActiveView(APIView):
         user = get_object_or_404(User.objects.exclude(role=Role.ADMIN), pk=pk)
         user.is_active = not user.is_active
         user.save(update_fields=["is_active"])
+        authentication.end_session(user)  # a blocked user is logged out at once
         Account.objects.filter(user=user).update(is_active=user.is_active)
         services.audit(request, "user_unblocked" if user.is_active else "user_blocked", f"@{user.username}")
         return Response({"id": user.id, "is_active": user.is_active})
@@ -829,3 +833,17 @@ class BillsView(APIView):
         except services.BankError as exc:
             return _bad(str(exc))
         return Response(BillPaymentSerializer(bill).data, status=status.HTTP_201_CREATED)
+
+
+class SessionRefreshView(TokenRefreshView):
+    serializer_class = authentication.SessionRefreshSerializer
+
+
+class LogoutView(APIView):
+    """Ends the current login, so the same user can log in again from anywhere."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        authentication.end_session(request.user)
+        return Response({"detail": "Logged out."})

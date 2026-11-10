@@ -350,7 +350,7 @@ export default function AuthPage() {
   if (!checking && user) return <Navigate to={homePath(user.role)} replace />;
 
   return (
-    <div className="min-h-dvh bg-slate-50 lg:flex lg:bg-white">
+    <div className="fade-in min-h-dvh bg-slate-50 lg:flex lg:bg-white">
       {/* Mobile: compact header. Desktop: full welcome panel on the left. */}
       <section
         className={`px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16 ${
@@ -400,7 +400,8 @@ export default function AuthPage() {
 
       {/* Form card: overlaps the header on mobile */}
       <section className="-mt-10 px-4 pb-8 lg:mt-0 lg:flex lg:w-1/2 lg:items-center lg:justify-center lg:px-6 lg:py-10">
-        <div className={`card mx-auto w-full p-5 shadow-lg sm:p-8 lg:shadow-sm ${staff || mode === "login" ? "max-w-md" : "max-w-xl"}`}>
+        <div className={`card auth-card mx-auto w-full p-5 shadow-lg sm:p-8 lg:shadow-sm ${staff || mode === "login" ? "max-w-md" : "max-w-xl"}`}>
+          <div key={staff ? "staff" : mode} className="form-swap">
           {staff || mode === "login" ? (
             <LoginForm
               staff={staff}
@@ -419,6 +420,7 @@ export default function AuthPage() {
               }}
             />
           )}
+          </div>
         </div>
       </section>
     </div>

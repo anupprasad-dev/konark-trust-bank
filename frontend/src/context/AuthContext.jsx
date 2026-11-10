@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import api, { tokens } from "../api";
+import api, { API_URL, tokens } from "../api";
 
 const AuthContext = createContext(null);
 
@@ -33,6 +33,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Tell the server, so this user can log in again from another tab. keepalive lets it finish even as we leave.
+    const access = tokens.access();
+    if (access) {
+      fetch(`${API_URL}/auth/logout/`, { method: "POST", headers: { Authorization: `Bearer ${access}` }, keepalive: true }).catch(() => {});
+    }
     tokens.clear();
     setUser(null);
   }, []);

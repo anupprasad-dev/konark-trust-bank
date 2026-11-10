@@ -10,6 +10,8 @@ from django.test import override_settings
 from PIL import Image
 from rest_framework.test import APITestCase
 
+from django.utils import timezone
+
 from .models import Account, Card, RegistrationRequest, Role, Transaction, User
 from .services import generate_account_number
 
@@ -40,7 +42,7 @@ def make_user(username, role, full_name="", with_account=False, balance="0"):
     return user
 
 
-@override_settings(MEDIA_ROOT=TEST_MEDIA, CLOUDINARY_URL="")  # photos go to a temp folder
+@override_settings(MEDIA_ROOT=TEST_MEDIA, CLOUDINARY_URL="", SINGLE_SESSION=False)  # photos go to a temp folder
 class BankTestBase(APITestCase):
     def setUp(self):
         cache.clear()  # reset login throttling between tests
@@ -1539,3 +1541,76 @@ class BillPaymentTests(BankTestBase):
         Account.objects.filter(user=self.asha).update(is_frozen=True)
         self.assertEqual(self.pay().status_code, 400)
         self.assertEqual(Account.objects.get(user=self.asha).balance, Decimal("5000"))
+
+
+@override_settings(SINGLE_SESSION=True)
+class SingleSessionTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.user = make_user("asha", Role.CUSTOMER, with_account=True)
+
+    def post_login(self, password=PASSWORD):
+        return self.client.post("/api/auth/login/", {"username": "asha", "password": password}, format="json")
+
+    def test_second_login_is_refused_while_the_first_is_live(self):
+        first = self.post_login()
+        self.assertEqual(first.status_code, 200, first.content)
+        second = self.post_login()
+        self.assertEqual(second.status_code, 409)
+        self.assertIn("already logged in", str(second.data["detail"]))
+
+    def test_wrong_password_still_says_wrong_password(self):
+        self.post_login()
+        self.assertEqual(self.post_login("nope").status_code, 401)
+
+    def test_logout_frees_the_login(self):
+        first = self.post_login()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.assertEqual(self.client.post("/api/auth/logout/").status_code, 200)
+        self.client.credentials()
+        self.assertEqual(self.post_login().status_code, 200)
+        # the old tokens are dead
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_idle_login_can_be_replaced(self):
+        from datetime import timedelta
+        first = self.post_login()
+        User.objects.filter(pk=self.user.pk).update(session_seen=timezone.now() - timedelta(minutes=11))
+        self.assertEqual(self.post_login().status_code, 200)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_idle_tokens_stop_working(self):
+        from datetime import timedelta
+        first = self.post_login()
+        User.objects.filter(pk=self.user.pk).update(session_seen=timezone.now() - timedelta(minutes=11))
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_refresh_works_for_the_live_login_only(self):
+        first = self.post_login()
+        ok = self.client.post("/api/auth/refresh/", {"refresh": first.data["refresh"]}, format="json")
+        self.assertEqual(ok.status_code, 200, ok.content)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.client.post("/api/auth/logout/")
+        self.client.credentials()
+        gone = self.client.post("/api/auth/refresh/", {"refresh": ok.data.get("refresh", first.data["refresh"])}, format="json")
+        self.assertEqual(gone.status_code, 401)
+
+    def test_blocking_a_user_logs_them_out(self):
+        first = self.post_login()
+        boss = make_user("boss", Role.ADMIN)
+        self.client.credentials()
+        admin = self.client.post("/api/auth/login/", {"username": "boss", "password": PASSWORD}, format="json")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {admin.data['access']}")
+        self.client.post(f"/api/admin-panel/users/{self.user.id}/toggle-active/")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {first.data['access']}")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_different_users_do_not_block_each_other(self):
+        make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.assertEqual(self.post_login().status_code, 200)
+        self.assertEqual(
+            self.client.post("/api/auth/login/", {"username": "ravi", "password": PASSWORD}, format="json").status_code, 200
+        )
