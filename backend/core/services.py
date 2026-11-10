@@ -9,7 +9,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, AuditLog, Card, Deposit, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
@@ -656,3 +656,52 @@ def audit(request, action, target="", details=""):
         actor=actor, actor_name=actor.username, actor_role=actor.role, action=action,
         target=str(target)[:200], details=str(details)[:500], ip_address=client_ip(request),
     )
+
+
+# ------------------------------------------------------------------ bill payments (demo)
+BILLERS = {
+    "electricity": {"label": "Electricity", "billers": ["State Power Distribution", "City Power Supply"], "field": "Consumer number"},
+    "mobile": {"label": "Mobile recharge", "billers": ["Prepaid recharge", "Postpaid bill"], "field": "Mobile number"},
+    "dth": {"label": "DTH / TV", "billers": ["DTH recharge"], "field": "Subscriber ID"},
+    "water": {"label": "Water", "billers": ["Municipal Water Supply"], "field": "Consumer number"},
+    "gas": {"label": "Gas", "billers": ["Piped Gas Supply"], "field": "Customer ID"},
+    "broadband": {"label": "Broadband", "billers": ["Broadband / Internet"], "field": "Account ID"},
+}
+MIN_BILL, MAX_BILL = Decimal("10"), Decimal("50000")
+
+
+@transaction.atomic
+def pay_bill(*, user, category, biller, consumer_number, amount: Decimal):
+    info = BILLERS.get(category)
+    if info is None:
+        raise BankError("Please choose a bill type.")
+    if biller not in info["billers"]:
+        raise BankError("Please choose a provider from the list.")
+    consumer_number = (consumer_number or "").strip()
+    if category == "mobile":
+        if not (consumer_number.isdigit() and len(consumer_number) == 10 and consumer_number[0] in "6789"):
+            raise BankError("Enter a valid 10 digit mobile number.")
+    elif not (4 <= len(consumer_number) <= 20 and consumer_number.isalnum()):
+        raise BankError(f"Enter a valid {info['field'].lower()} (4 to 20 letters or digits).")
+    if not (MIN_BILL <= amount <= MAX_BILL):
+        raise BankError(f"The amount must be between {MIN_BILL:,.0f} and {MAX_BILL:,.0f} rupees.")
+
+    account = _lock_account(user)
+    if account.balance < amount:
+        raise BankError("Insufficient balance.")
+    account.balance -= amount
+    account.save(update_fields=["balance"])
+
+    while True:
+        ref = "BP" + "".join(secrets.choice("0123456789") for _ in range(10))
+        if not BillPayment.objects.filter(reference=ref).exists():
+            break
+    bill = BillPayment.objects.create(
+        user=user, reference=ref, category=category, biller=biller,
+        consumer_number=consumer_number, amount=amount,
+    )
+    Transaction.objects.create(
+        txn_type=Transaction.Type.BILL_PAYMENT, from_account=account, amount=amount,
+        remark=f"{biller} {consumer_number}"[:140], performed_by=user,
+    )
+    return bill

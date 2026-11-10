@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Transaction, User
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Transaction, User
 
 
 @admin.register(User)
@@ -87,3 +87,9 @@ class AuditLogAdmin(admin.ModelAdmin):
 class LoginActivityAdmin(admin.ModelAdmin):
     list_display = ("user", "success", "device", "ip_address", "created_at")
     list_filter = ("success",)
+
+
+@admin.register(BillPayment)
+class BillPaymentAdmin(admin.ModelAdmin):
+    list_display = ("reference", "user", "biller", "amount", "created_at")
+    list_filter = ("category",)

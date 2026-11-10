@@ -120,6 +120,7 @@ class Transaction(models.Model):
         REVERSAL = "reversal", "Reversal"  # created when a transfer is cancelled
         TERM_DEPOSIT = "term_deposit", "Deposit locked"  # money moved into an FD / RD
         TERM_PAYOUT = "term_payout", "Deposit payout"  # money (and interest) paid back
+        BILL_PAYMENT = "bill_payment", "Bill payment"  # demo bill payments
 
     class Status(models.TextChoices):
         COMPLETED = "completed", "Completed"
@@ -199,6 +200,8 @@ class Transaction(models.Model):
             return "Konark Trust Bank (cash withdrawal)", ""
         if self.txn_type == self.Type.TERM_DEPOSIT:
             return "Konark Trust Bank (term deposit)", ""
+        if self.txn_type == self.Type.BILL_PAYMENT:
+            return "Bill payment (demo)", ""
         return "Closed account", self.to_account_number
 
 
@@ -345,3 +348,18 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.actor_name}: {self.action} {self.target}"
+
+
+class BillPayment(models.Model):
+    """A simulated utility bill / recharge. No real biller is contacted: it only moves demo money."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bill_payments")
+    reference = models.CharField(max_length=12, unique=True, editable=False)
+    category = models.CharField(max_length=20)
+    biller = models.CharField(max_length=80)
+    consumer_number = models.CharField(max_length=20)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

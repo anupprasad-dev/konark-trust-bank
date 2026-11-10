@@ -12,8 +12,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+import math
 
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from .bankinfo import BANK_BRANCH, BANK_IFSC, BANK_NAME
 from .models import Transaction
 
 BRAND = colors.HexColor("#1f4fa3")
@@ -23,6 +26,32 @@ MAX_ROWS = 3000
 
 class StatementTooLarge(Exception):
     pass
+
+
+class WheelLogo(Flowable):
+    """The Konark wheel in a blue rounded square, drawn with lines so it stays sharp when printed."""
+
+    def __init__(self, size=15 * mm):
+        super().__init__()
+        self.size = self.width = self.height = size
+
+    def draw(self):
+        c, s = self.canv, self.size
+        c.setFillColor(BRAND)
+        c.roundRect(0, 0, s, s, s * 0.22, stroke=0, fill=1)
+        cx = cy = s / 2
+        r = s * 0.36
+        c.setStrokeColor(colors.white)
+        c.setLineWidth(s * 0.028)
+        c.circle(cx, cy, r, stroke=1, fill=0)
+        c.circle(cx, cy, r * 0.86, stroke=1, fill=0)
+        c.circle(cx, cy, r * 0.31, stroke=1, fill=0)
+        for i in range(24):
+            a = i * 2 * math.pi / 24
+            c.line(cx + r * 0.31 * math.cos(a), cy + r * 0.31 * math.sin(a),
+                   cx + r * 0.86 * math.cos(a), cy + r * 0.86 * math.sin(a))
+        c.setFillColor(colors.HexColor("#f2a900"))
+        c.circle(cx, cy, r * 0.11, stroke=0, fill=1)
 
 
 def money(value):
@@ -124,18 +153,30 @@ def build_statement_pdf(account, date_from=None, date_to=None):
         title=f"Account statement {account.account_number}", author="Konark Trust Bank",
     )
 
-    story = [
-        Paragraph("Konark Trust Bank", title),
-        Paragraph("Account Statement", sub),
-        Spacer(1, 6 * mm),
-    ]
+    right = ParagraphStyle("r", parent=sub, alignment=2, fontSize=9, textColor=colors.HexColor("#475569"))
+    head = Table(
+        [[
+            WheelLogo(),
+            [Paragraph(BANK_NAME, title), Paragraph(f"{BANK_BRANCH}  |  IFSC {BANK_IFSC}", muted)],
+            [Paragraph("<b>ACCOUNT STATEMENT</b>", right), Paragraph(period, right)],
+        ]],
+        colWidths=[19 * mm, 95 * mm, 66 * mm],
+    )
+    head.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("LINEBELOW", (0, 0), (-1, 0), 1.2, BRAND),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+    ]))
+    story = [head, Spacer(1, 5 * mm)]
 
     holder = account.user
     info = Table(
         [
             ["Account holder", holder.display_name, "Account number", account.account_number],
-            ["Username", holder.username, "Statement period", period],
-            ["Generated on", timezone.localtime().strftime("%d %b %Y, %H:%M"), "", ""],
+            ["Username", holder.username, "Account type", "Savings Account"],
+            ["Branch", BANK_BRANCH, "IFSC", BANK_IFSC],
+            ["Generated on", timezone.localtime().strftime("%d %b %Y, %H:%M"), "Statement period", period],
         ],
         colWidths=[30 * mm, 55 * mm, 32 * mm, 63 * mm],
     )

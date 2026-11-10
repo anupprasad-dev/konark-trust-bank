@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
+import QrScanner from "../../components/QrScanner.jsx";
 import { Alert, Avatar, Empty, Input, PageHeader, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -12,6 +13,7 @@ export default function Beneficiaries() {
   const [message, setMessage] = useState("");
   const [find, setFind] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -47,14 +49,19 @@ export default function Beneficiaries() {
       <PageHeader title="Beneficiaries" subtitle="People you send money to often." />
 
       <form onSubmit={add} className="card mb-6 grid gap-3 sm:grid-cols-3 sm:items-start">
-        <Input
-          label="Account number"
-          value={form.account_number}
-          onChange={set("account_number")}
-          error={errors.account_number}
-          inputMode="numeric"
-          required
-        />
+        <div>
+          <Input
+            label="Account number"
+            value={form.account_number}
+            onChange={set("account_number")}
+            error={errors.account_number}
+            inputMode="numeric"
+            required
+          />
+          <button type="button" className="mt-2 text-sm font-bold text-brand-700 hover:underline" onClick={() => setScanning(true)}>
+            Scan QR code
+          </button>
+        </div>
         <Input label="Nickname (optional)" value={form.nickname} onChange={set("nickname")} error={errors.nickname} maxLength={40} />
         <div className="sm:pt-6">
           <button className="btn-primary w-full" disabled={busy}>
@@ -107,6 +114,12 @@ export default function Beneficiaries() {
         </>
       ) : (
         !error && <div className="card"><Empty>No beneficiaries yet. Add an account number above to send money faster next time.</Empty></div>
+      )}
+      {scanning && (
+        <QrScanner
+          onClose={() => setScanning(false)}
+          onScan={(number) => setForm((f) => ({ ...f, account_number: number }))}
+        />
       )}
     </>
   );

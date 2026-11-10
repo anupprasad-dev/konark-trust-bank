@@ -113,3 +113,56 @@
 @media (prefers-reduced-motion: reduce) {
   .card { animation: none !important; }
 }
+
+/* ================================================================== dark mode
+   Switched on by the "dark" class on <html> (see theme.js). It re-colours the
+   light utility classes the pages already use, so no page needs its own dark styles. */
+html.dark { color-scheme: dark; }
+.dark body { background: #0a1120; color: #e2e8f0; }
+
+.dark .bg-white, .dark .card { background-color: #111b30; }
+.dark .bg-slate-50, .dark .bg-slate-50\/60, .dark .bg-slate-50\/70 { background-color: #0e1729; }
+.dark .bg-slate-100, .dark .bg-slate-200, .dark .bg-slate-200\/60 { background-color: #1a2742; }
+.dark .bg-brand-50, .dark .bg-brand-50\/40, .dark .bg-brand-50\/60 { background-color: #14234a; }
+.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.14); }
+.dark .bg-rose-50, .dark .bg-red-50 { background-color: rgba(244, 63, 94, 0.14); }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.14); }
+.dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.14); }
+.dark .hover\:bg-brand-50:hover, .dark .hover\:bg-brand-50\/40:hover { background-color: #19306a; }
+.dark .hover\:bg-slate-50:hover, .dark .hover\:bg-slate-100:hover { background-color: #17233d; }
+
+.dark .text-slate-900, .dark .text-black { color: #f1f5f9; }
+.dark .text-slate-800 { color: #e2e8f0; }
+.dark .text-slate-700 { color: #cbd5e1; }
+.dark .text-slate-600 { color: #aebbd0; }
+.dark .text-slate-500 { color: #97a6bd; }
+.dark .text-slate-400 { color: #7f8ea8; }
+.dark .text-brand-600, .dark .text-brand-700, .dark .text-brand-800 { color: #8fb1f7; }
+.dark .text-emerald-600, .dark .text-emerald-700, .dark .text-emerald-800 { color: #34d399; }
+.dark .text-red-600, .dark .text-red-700 { color: #fb7185; }
+.dark .text-amber-600, .dark .text-amber-700 { color: #fbbf24; }
+.dark .text-green-700 { color: #4ade80; }
+
+.dark .border-slate-100, .dark .border-slate-200, .dark .border-slate-300 { border-color: #223050; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #223050; }
+.dark .ring-slate-200, .dark .ring-slate-200\/70 { --tw-ring-color: #223050; }
+.dark .border-brand-100, .dark .border-brand-200 { border-color: #24407f; }
+
+/* page header band and other white-to-blue gradients */
+.dark .from-brand-50 { --tw-gradient-from: #14234a var(--tw-gradient-from-position); --tw-gradient-to: rgb(20 35 74 / 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+.dark .via-white { --tw-gradient-stops: var(--tw-gradient-from), #111b30 var(--tw-gradient-via-position), var(--tw-gradient-to); }
+.dark .to-white { --tw-gradient-to: #111b30 var(--tw-gradient-to-position); }
+
+.dark .input, .dark select, .dark textarea {
+  background-color: #0e1729;
+  border-color: #2a3a5e;
+  color: #e2e8f0;
+}
+.dark .input::placeholder, .dark textarea::placeholder { color: #6b7a94; }
+.dark .btn-outline { background-color: transparent; color: #cbd5e1; border-color: #2a3a5e; }
+.dark .btn-outline:hover { background-color: #17233d; }
+.dark .rtable tr { background-color: #111b30; border-color: #223050; }
+.dark table thead { background-color: #0e1729; }
+.dark tbody tr { border-color: #223050; }
+.dark .shadow-sm, .dark .shadow-md { --tw-shadow-color: rgba(0, 0, 0, 0.5); }

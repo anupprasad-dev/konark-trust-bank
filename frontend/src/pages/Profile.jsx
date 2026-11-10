@@ -2,6 +2,7 @@ import { useState } from "react";
 import api, { errorMessage, fieldErrors } from "../api";
 import { WheelMark } from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
+import QrCard from "../components/QrCard.jsx";
 import RatingForm from "../components/RatingForm.jsx";
 import { FreezePanel, LoginActivityPanel } from "../components/SecurityPanels.jsx";
 import { Alert, Avatar, formatDate, formatDay, PasswordInput, Spinner } from "../components/ui.jsx";
@@ -190,6 +191,9 @@ export default function Profile() {
                 <Row label="IFSC"><span className="num font-mono">{data.bank.ifsc}</span></Row>
                 <Row label="Bank branch">{data.bank.branch}</Row>
               </dl>
+              <div className="border-t border-slate-100 p-5 sm:p-6">
+                <QrCard accountNumber={data.account_number} holderName={data.full_name} />
+              </div>
             </section>
           )}
 

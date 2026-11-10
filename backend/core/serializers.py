@@ -11,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import photos
-from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -656,3 +656,23 @@ class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
         fields = ["id", "actor_name", "actor_role", "action", "target", "details", "ip_address", "created_at"]
+
+
+# ------------------------------------------------------------------ bill payments (demo)
+class PayBillSerializer(PasswordConfirmSerializer):
+    category = serializers.CharField(max_length=20)
+    biller = serializers.CharField(max_length=80)
+    consumer_number = serializers.CharField(max_length=20)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class BillPaymentSerializer(serializers.ModelSerializer):
+    category_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BillPayment
+        fields = ["id", "reference", "category", "category_label", "biller", "consumer_number", "amount", "created_at"]
+
+    def get_category_label(self, obj):
+        from .services import BILLERS
+        return BILLERS.get(obj.category, {}).get("label", obj.category)

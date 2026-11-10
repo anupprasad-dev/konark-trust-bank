@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
 import RatingForm from "./RatingForm.jsx";
+import { getTheme, saveTheme } from "../theme";
 import { Avatar, Modal } from "./ui.jsx";
 
 /** Shared page frame (sidebar on desktop, top bar on phones) for all three dashboards. */
@@ -12,6 +13,22 @@ export default function Layout({ roleLabel, links, profileTo }) {
   const navigate = useNavigate();
 
   const [rating, setRating] = useState(false);
+  const [theme, setTheme] = useState(getTheme);
+  const flipTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    saveTheme(next);
+    setTheme(next);
+  };
+  const themeButton = (
+    <button
+      onClick={flipTheme}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+    >
+      <Icon name={theme === "dark" ? "sun" : "moon"} className="h-5 w-5" />
+    </button>
+  );
 
   const finishLogout = () => {
     setRating(false);
@@ -73,10 +90,11 @@ export default function Layout({ roleLabel, links, profileTo }) {
                 {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" />}
               </NavLink>
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{name}</p>
               <p className="truncate text-xs text-brand-300">@{user?.username}</p>
             </div>
+            {themeButton}
           </div>
           <button onClick={onLogout} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
             <Icon name="logout" className="h-4 w-4" /> Logout
@@ -92,6 +110,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
             <p className="mt-0.5 pl-[2.9rem] text-[11px] text-brand-300">{roleLabel}</p>
           </div>
           <div className="flex items-center gap-2">
+            {themeButton}
             {profileTo && (
               <NavLink
                 to={profileTo}

@@ -21,6 +21,7 @@ urlpatterns = [
     path("customer/beneficiaries/<int:pk>/", views.BeneficiaryDeleteView.as_view()),
     path("feedback/", views.FeedbackView.as_view()),
     path("customer/account/freeze/", views.FreezeAccountView.as_view()),
+    path("customer/bills/", views.BillsView.as_view()),
     path("customer/cards/", views.MyCardsView.as_view()),
     path("customer/cards/<int:pk>/block/", views.BlockCardView.as_view()),
     path("customer/deposits/", views.MyDepositsView.as_view()),

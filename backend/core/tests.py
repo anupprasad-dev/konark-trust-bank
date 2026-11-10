@@ -1485,3 +1485,44 @@ class SecurityTests(BankTestBase):
         self.client.post(f"/api/admin-panel/users/{self.ravi.id}/toggle-active/")
         rows = self.client.get("/api/admin-panel/audit/").data["results"]
         self.assertEqual(rows[0]["action"], "user_blocked")
+
+
+class BillPaymentTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="5000")
+        self.login("asha")
+
+    def pay(self, **kw):
+        body = {"category": "electricity", "biller": "City Power Supply", "consumer_number": "ELEC12345",
+                "amount": "750", "password": PASSWORD}
+        body.update(kw)
+        return self.client.post("/api/customer/bills/", body, format="json")
+
+    def test_pay_bill_debits_and_records_ledger(self):
+        r = self.pay()
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(Account.objects.get(user=self.asha).balance, Decimal("4250"))
+        self.assertEqual(Transaction.objects.get(txn_type="bill_payment").amount, Decimal("750"))
+        hist = self.client.get("/api/customer/transactions/").data["results"][0]
+        self.assertEqual(hist["direction"], "DEBIT")
+        data = self.client.get("/api/customer/bills/").data
+        self.assertEqual(len(data["payments"]), 1)
+        self.assertIn("electricity", data["billers"])
+
+    def test_validation(self):
+        self.assertEqual(self.pay(password="nope").status_code, 400)
+        self.assertEqual(self.pay(category="rocket").status_code, 400)
+        self.assertEqual(self.pay(biller="Unknown Co").status_code, 400)
+        self.assertEqual(self.pay(amount="5").status_code, 400)
+        self.assertEqual(self.pay(amount="999999").status_code, 400)
+        self.assertEqual(self.pay(consumer_number="ab").status_code, 400)
+        self.assertEqual(self.pay(category="mobile", biller="Prepaid recharge", consumer_number="12345").status_code, 400)
+        self.assertEqual(self.pay(category="mobile", biller="Prepaid recharge", consumer_number="9876543210", amount="299").status_code, 201)
+        self.assertEqual(Account.objects.get(user=self.asha).balance, Decimal("4701"))
+
+    def test_insufficient_balance_and_frozen(self):
+        self.assertEqual(self.pay(amount="6000").status_code, 400)
+        Account.objects.filter(user=self.asha).update(is_frozen=True)
+        self.assertEqual(self.pay().status_code, 400)
+        self.assertEqual(Account.objects.get(user=self.asha).balance, Decimal("5000"))

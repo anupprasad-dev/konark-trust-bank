@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
+import QrScanner from "../../components/QrScanner.jsx";
 import { Alert, Field, formatDate, formatINR, Input, PageHeader, PasswordInput } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -17,6 +18,7 @@ export default function Transfer() {
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
@@ -123,14 +125,19 @@ export default function Transfer() {
             </Field>
           )}
 
-          <Input
-            label="Receiver account number"
-            value={form.to_account_number}
-            onChange={set("to_account_number")}
-            error={errors.to_account_number}
-            inputMode="numeric"
-            required
-          />
+          <div>
+            <Input
+              label="Receiver account number"
+              value={form.to_account_number}
+              onChange={set("to_account_number")}
+              error={errors.to_account_number}
+              inputMode="numeric"
+              required
+            />
+            <button type="button" className="mt-2 text-sm font-bold text-brand-700 hover:underline" onClick={() => setScanning(true)}>
+              Scan QR code instead
+            </button>
+          </div>
           <Input
             label="Amount (INR)"
             type="number"
@@ -181,6 +188,12 @@ export default function Transfer() {
           </ul>
         </aside>
       </div>
+      {scanning && (
+        <QrScanner
+          onClose={() => setScanning(false)}
+          onScan={(number) => setForm((f) => ({ ...f, to_account_number: number }))}
+        />
+      )}
     </>
   );
 }

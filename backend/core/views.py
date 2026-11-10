@@ -15,11 +15,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, AuditLog, Beneficiary, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
-    ApproveSerializer, AuditLogSerializer, BlockCardSerializer, CardSerializer, DailyLimitSerializer,
+    ApproveSerializer, AuditLogSerializer, BillPaymentSerializer, PayBillSerializer, BlockCardSerializer, CardSerializer, DailyLimitSerializer,
     FreezeSerializer, LoginActivitySerializer, OpenDepositSerializer, TermDepositSerializer,
     PasswordConfirmSerializer, QuoteSerializer, CustomerDetailsSerializer, EmployeeCardSerializer, FeedbackSerializer,
     BeneficiarySerializer, CancelTransactionSerializer, ChangePasswordSerializer,
@@ -83,8 +83,7 @@ class RegisterView(generics.CreateAPIView):
         )
 
 
-BANK_IFSC = "KTBL0000001"  # made-up code for this demo bank
-BANK_BRANCH = "Konark Main Branch"
+from .bankinfo import BANK_BRANCH, BANK_IFSC  # noqa: E402
 
 
 class MeView(APIView):
@@ -797,3 +796,30 @@ class AdminAuditLogView(generics.ListAPIView):
         if q:
             qs = qs.filter(Q(actor_name__icontains=q) | Q(target__icontains=q) | Q(details__icontains=q))
         return qs
+
+
+# ====================================================================== bill payments (demo)
+class BillsView(APIView):
+    """GET the list of billers and the customer's last payments. POST pays a (simulated) bill."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        payments = BillPayment.objects.filter(user=request.user)[:20]
+        return Response({
+            "billers": services.BILLERS,
+            "payments": BillPaymentSerializer(payments, many=True).data,
+        })
+
+    def post(self, request):
+        serializer = PayBillSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            bill = services.pay_bill(
+                user=request.user, category=d["category"], biller=d["biller"],
+                consumer_number=d["consumer_number"], amount=d["amount"],
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(BillPaymentSerializer(bill).data, status=status.HTTP_201_CREATED)
