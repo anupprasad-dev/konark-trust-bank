@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse
@@ -17,7 +17,7 @@ from . import authentication
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, Notification, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
@@ -847,3 +847,120 @@ class LogoutView(APIView):
     def post(self, request):
         authentication.end_session(request.user)
         return Response({"detail": "Logged out."})
+
+
+# ------------------------------------------------------------------ notifications and analytics
+class NotificationListView(APIView):
+    """The latest 20 messages and how many are unread."""
+
+    def get(self, request):
+        mine = Notification.objects.filter(user=request.user)
+        items = [
+            {"id": n.id, "kind": n.kind, "title": n.title, "body": n.body, "is_read": n.is_read, "created_at": n.created_at}
+            for n in mine[:20]
+        ]
+        return Response({"unread": mine.filter(is_read=False).count(), "results": items})
+
+
+class NotificationReadView(APIView):
+    """POST with no id marks everything read (`notifications/read/`), with an id marks one."""
+
+    def post(self, request, pk=None):
+        mine = Notification.objects.filter(user=request.user, is_read=False)
+        if pk is not None:
+            mine = mine.filter(pk=pk)
+        mine.update(is_read=True)
+        return Response({"detail": "Done."})
+
+
+ANALYTICS_MONTHS = 6
+SPEND_LABELS = {
+    "transfer": "Transfers",
+    "bill_payment": "Bills and recharges",
+    "term_deposit": "Fixed / recurring deposits",
+    "withdrawal": "Withdrawals",
+    "reversal": "Reversals",
+}
+
+
+class SpendingAnalyticsView(APIView):
+    """Money in and out for the last six months, and where this month's money went."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        account = get_object_or_404(Account, user=request.user)
+        today = timezone.localdate()
+        months = []  # oldest first: (year, month)
+        y, m = today.year, today.month
+        for _ in range(ANALYTICS_MONTHS):
+            months.append((y, m))
+            y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+        months.reverse()
+        start = timezone.make_aware(datetime(months[0][0], months[0][1], 1))
+
+        rows = (
+            Transaction.objects.filter(created_at__gte=start)
+            .exclude(status=Transaction.Status.CANCELLED)
+            .filter(Q(from_account=account) | Q(to_account=account))
+            .values("created_at", "amount", "txn_type", "from_account_id", "to_account_id")
+        )
+        series = {key: {"credit": 0.0, "debit": 0.0} for key in months}
+        spent = {}
+        for r in rows:
+            when = timezone.localtime(r["created_at"])
+            key = (when.year, when.month)
+            if key not in series:
+                continue
+            amount = float(r["amount"])
+            if r["to_account_id"] == account.id:
+                series[key]["credit"] += amount
+            if r["from_account_id"] == account.id:
+                series[key]["debit"] += amount
+                if key == (today.year, today.month):
+                    spent[r["txn_type"]] = spent.get(r["txn_type"], 0.0) + amount
+
+        this = series[(today.year, today.month)]
+        breakdown = sorted(
+            ({"label": SPEND_LABELS.get(k, k.title()), "amount": round(v, 2)} for k, v in spent.items()),
+            key=lambda x: -x["amount"],
+        )
+        return Response(
+            {
+                "months": [
+                    {
+                        "label": date(y, m, 1).strftime("%b"),
+                        "credit": round(series[(y, m)]["credit"], 2),
+                        "debit": round(series[(y, m)]["debit"], 2),
+                    }
+                    for (y, m) in months
+                ],
+                "this_month": {"credit": round(this["credit"], 2), "debit": round(this["debit"], 2)},
+                "breakdown": breakdown,
+            }
+        )
+
+
+class EmployeeSummaryView(APIView):
+    """The numbers at the top of the employee dashboard."""
+
+    permission_classes = [IsEmployee]
+
+    def get(self, request):
+        today = timezone.localdate()
+        start = timezone.make_aware(datetime.combine(today, time.min))
+        mine_today = Transaction.objects.filter(
+            txn_type=Transaction.Type.DEPOSIT, performed_by=request.user, created_at__gte=start
+        ).aggregate(count=Count("id"), total=Sum("amount"))
+        return Response(
+            {
+                "pending_requests": RegistrationRequest.objects.filter(status=RegistrationRequest.Status.PENDING).count(),
+                "approved_today": RegistrationRequest.objects.filter(
+                    status=RegistrationRequest.Status.APPROVED, reviewed_by=request.user, reviewed_at__gte=start
+                ).count(),
+                "pending_cards": Card.objects.filter(status=Card.Status.PENDING).count(),
+                "customers": User.objects.filter(role=Role.CUSTOMER).count(),
+                "deposits_today": mine_today["count"] or 0,
+                "deposits_today_total": mine_today["total"] or 0,
+            }
+        )

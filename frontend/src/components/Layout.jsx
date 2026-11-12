@@ -5,6 +5,7 @@ import BrandLogo from "./Brand.jsx";
 import Icon from "./icons.jsx";
 import RatingForm from "./RatingForm.jsx";
 import IdleGuard from "./IdleGuard.jsx";
+import NotificationBell from "./NotificationBell.jsx";
 import { applyTheme, getTheme, saveTheme } from "../theme";
 import { Avatar, Modal, Spinner } from "./ui.jsx";
 
@@ -95,11 +96,6 @@ export default function Layout({ roleLabel, links, profileTo }) {
       isActive ? "bg-white/10 text-white" : "text-brand-200 hover:bg-white/5 hover:text-white"
     }`;
 
-  const pillLink = ({ isActive }) =>
-    `flex flex-none items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold transition ${
-      isActive ? "bg-brand-700 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
-    }`;
-
   const name = user?.full_name || user?.username;
 
   // phone: the flagged pages (or the first four) go in the bottom bar, the rest under "More"
@@ -112,9 +108,12 @@ export default function Layout({ roleLabel, links, profileTo }) {
     <div className="min-h-dvh md:flex">
       {/* Desktop sidebar */}
       <aside className="hidden bg-brand-900 text-white md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-        <div className="px-5 pb-5 pt-6">
-          <BrandLogo light />
-          <p className="mt-2 pl-[2.875rem] text-xs text-brand-300">{roleLabel}</p>
+        <div className="flex items-start justify-between gap-2 px-5 pb-5 pt-6">
+          <div className="min-w-0">
+            <BrandLogo light />
+            <p className="mt-2 pl-[2.875rem] text-xs text-brand-300">{roleLabel}</p>
+          </div>
+          {user?.role === "customer" && <NotificationBell />}
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3">
@@ -166,6 +165,8 @@ export default function Layout({ roleLabel, links, profileTo }) {
             <BrandLogo light size="sm" />
             <p className="mt-0.5 pl-[2.9rem] text-[11px] text-brand-300">{roleLabel}</p>
           </div>
+          <div className="flex items-center gap-2">
+          {user?.role === "customer" && <NotificationBell />}
           <button
             onClick={() => setSheet("account")}
             aria-label="My account"
@@ -176,6 +177,7 @@ export default function Layout({ roleLabel, links, profileTo }) {
             </span>
             <span className="max-w-[6.5rem] truncate text-xs font-bold">{(name || "").split(" ")[0]}</span>
           </button>
+          </div>
         </div>
       </header>
 

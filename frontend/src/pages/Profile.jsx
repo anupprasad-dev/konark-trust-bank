@@ -5,8 +5,7 @@ import Icon from "../components/icons.jsx";
 import QrCard from "../components/QrCard.jsx";
 import RatingForm from "../components/RatingForm.jsx";
 import { FreezePanel, LoginActivityPanel } from "../components/SecurityPanels.jsx";
-import { Alert, Avatar, formatDate, formatDay, PasswordInput, Spinner } from "../components/ui.jsx";
-import { useAuth } from "../context/AuthContext";
+import { Alert, Avatar, formatDate, PasswordInput, Spinner } from "../components/ui.jsx";
 import { useApi } from "../hooks";
 
 const strength = (pw) => {

@@ -9,13 +9,27 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, Notification, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
 
 class BankError(Exception):
     """A problem the user should see (shown as HTTP 400)."""
+
+
+KEEP_NOTIFICATIONS = 50  # per user; older ones are removed
+
+
+def notify(user, kind, title, body=""):
+    """Add a message under the user's bell. Never raises: a missed message must not undo a payment."""
+    try:
+        Notification.objects.create(user=user, kind=kind, title=title[:80], body=body[:200])
+        old = Notification.objects.filter(user=user).values_list("id", flat=True)[KEEP_NOTIFICATIONS:]
+        if old:
+            Notification.objects.filter(id__in=list(old)).delete()
+    except Exception:  # pragma: no cover
+        pass
 
 
 def generate_account_number():
@@ -73,7 +87,7 @@ def perform_transfer(*, user, to_number, amount: Decimal, remark=""):
     sender.save(update_fields=["balance"])
     receiver.save(update_fields=["balance"])
 
-    return Transaction.objects.create(
+    txn = Transaction.objects.create(
         txn_type=Transaction.Type.TRANSFER,
         from_account=sender,
         to_account=receiver,
@@ -81,6 +95,9 @@ def perform_transfer(*, user, to_number, amount: Decimal, remark=""):
         remark=remark,
         performed_by=user,
     )
+    notify(sender.user, Notification.Kind.MONEY_OUT, f"Rs. {amount:,.2f} sent", f"To account {receiver.account_number}. Ref {txn.txn_ref}.")
+    notify(receiver.user, Notification.Kind.MONEY_IN, f"Rs. {amount:,.2f} received", f"From {user.full_name or user.username}. Ref {txn.txn_ref}.")
+    return txn
 
 
 @transaction.atomic
@@ -93,13 +110,15 @@ def deposit_cash(*, employee, account_number, amount: Decimal, remark="Cash depo
         raise BankError("Account is not active.")
     account.balance += amount
     account.save(update_fields=["balance"])
-    return Transaction.objects.create(
+    txn = Transaction.objects.create(
         txn_type=Transaction.Type.DEPOSIT,
         to_account=account,
         amount=amount,
         remark=remark,
         performed_by=employee,
     )
+    notify(account.user, Notification.Kind.MONEY_IN, f"Rs. {amount:,.2f} deposited", f"Cash deposit at the branch. Ref {txn.txn_ref}.")
+    return txn
 
 
 @transaction.atomic
@@ -131,6 +150,7 @@ def approve_registration(*, request_id, employee, opening_balance: Decimal = Dec
     )
     user.save()
     account = Account.objects.create(user=user, account_number=generate_account_number())
+    notify(user, Notification.Kind.ACCOUNT, "Welcome to Konark Trust Bank", "Your account is open. You can now send money and apply for a card.")
 
     if opening_balance and opening_balance > 0:
         account.balance = opening_balance
@@ -214,6 +234,8 @@ def cancel_transfer(*, employee, txn_id, reason):
     txn.cancelled_by = employee
     txn.cancel_reason = reason
     txn.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancel_reason"])
+    notify(sender.user, Notification.Kind.MONEY_IN, f"Rs. {txn.amount:,.2f} returned", f"Your transfer {txn.txn_ref} was cancelled by the bank.")
+    notify(receiver.user, Notification.Kind.MONEY_OUT, f"Rs. {txn.amount:,.2f} taken back", f"Transfer {txn.txn_ref} was cancelled by the bank.")
     return txn
 
 
@@ -353,6 +375,7 @@ def approve_card(*, employee, card_id, credit_limit=None):
     card.reviewed_by = employee
     card.reviewed_at = timezone.now()
     card.save()
+    notify(card.user, Notification.Kind.CARD, f"{card.get_card_type_display()} card approved", "Your card is ready. Open Cards to see it.")
     return card
 
 
@@ -372,6 +395,7 @@ def reject_card(*, employee, card_id, reason):
     card.reviewed_by = employee
     card.reviewed_at = timezone.now()
     card.save()
+    notify(card.user, Notification.Kind.CARD, f"{card.get_card_type_display()} card request rejected", reason[:150])
     return card
 
 
@@ -568,6 +592,7 @@ def settle_matured_deposits(user=None, today=None):
             else:  # RD: only the instalments that were really paid earn interest
                 payout = rd_maturity(dep.amount, dep.tenure_months, dep.interest_rate, paid=dep.installments_paid)
             _pay_out(dep, account, payout, Deposit.Status.MATURED, f"{dep.get_kind_display()} {dep.reference} matured")
+            notify(dep.user, Notification.Kind.DEPOSIT, f"{dep.get_kind_display()} matured", f"Rs. {payout:,.2f} was added to your account. Ref {dep.reference}.")
             done += 1
     return done
 

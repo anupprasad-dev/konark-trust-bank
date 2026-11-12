@@ -230,3 +230,11 @@ a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: 0 8px
 .auth-card { animation: rise-in 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) both; transition: max-width 0.3s ease; }
 .form-swap { animation: swap-in 0.32s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
 @media (prefers-reduced-motion: reduce) { .fade-in, .auth-card, .form-swap { animation: none !important; } }
+
+@keyframes bell-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } }
+.animate-bell { animation: bell-ring 0.9s ease 0.2s 1; }
+@media (prefers-reduced-motion: reduce) { .animate-bell { animation: none !important; } }
+
+@keyframes bar-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.bar-grow { transform-origin: bottom; animation: bar-grow 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) { .bar-grow { animation: none !important; } }

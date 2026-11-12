@@ -365,3 +365,28 @@ class BillPayment(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class Notification(models.Model):
+    """A short message for one user, shown under the bell icon."""
+
+    class Kind(models.TextChoices):
+        MONEY_IN = "money_in", "Money received"
+        MONEY_OUT = "money_out", "Money sent"
+        CARD = "card", "Card"
+        ACCOUNT = "account", "Account"
+        DEPOSIT = "deposit", "Deposit"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.ACCOUNT)
+    title = models.CharField(max_length=80)
+    body = models.CharField(max_length=200, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "is_read"])]
+
+    def __str__(self):
+        return f"{self.user_id}: {self.title}"

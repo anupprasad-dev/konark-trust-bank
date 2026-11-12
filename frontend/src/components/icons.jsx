@@ -1,5 +1,6 @@
 const PATHS = {
   dots: <><circle cx="5.500" cy="12" r="1.500" /><circle cx="12" cy="12" r="1.500" /><circle cx="18.500" cy="12" r="1.500" /></>,
+  bell: <><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.500 2 6.500H4S6 14 6 9z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
   chevron: <path d="m9 5 7 7-7 7" />,
   qr: <><rect x="3.500" y="3.500" width="6" height="6" rx="1" /><rect x="14.500" y="3.500" width="6" height="6" rx="1" /><rect x="3.500" y="14.500" width="6" height="6" rx="1" /><path d="M14.500 14.500h2.500v2.500h-2.500zM19 14.500v.01M14.500 19.500v.01M17 19.500h3.500M20.500 17v3.500" /></>,
   home: <><path d="M4 11l8-7 8 7v9H4z" /><path d="M10 20v-6h4v6" /></>,
@@ -27,7 +28,6 @@ const PATHS = {
   at: <><circle cx="12" cy="12" r="3.500" /><path d="M15.500 12v1.500a2.500 2.500 0 0 0 5 0V12a8.500 8.500 0 1 0-3.500 6.900" /></>,
   card: <><rect x="3" y="5.500" width="18" height="13" rx="2.500" /><path d="M3 10h18M7 15h4" /></>,
   calendar: <><rect x="4" y="5.500" width="16" height="14.500" rx="2" /><path d="M8 3.500v4M16 3.500v4M4 10h16" /></>,
-  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
   plus: <path d="M12 5v14M5 12h14" />,
   logout: <><path d="M10 4H5v16h5" /><path d="M9 12h11m0 0-3-3m3 3-3 3" /></>,
   eye: <><path d="M2.500 12S6 5.500 12 5.500 21.500 12 21.500 12 18 18.500 12 18.500 2.500 12 2.500 12z" /><circle cx="12" cy="12" r="2.800" /></>,

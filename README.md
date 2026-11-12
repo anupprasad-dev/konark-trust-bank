@@ -11,12 +11,22 @@ A full-stack internet-banking web application built as a portfolio project.
 > **Disclaimer:** Konark Trust Bank is a fictional bank created for learning and demonstration.
 > It is not affiliated with any real bank. Do not enter real personal or financial data.
 
-## Live demo
+## Live Preview
 
 | | Link |
 |---|---|
-| Website | **https://konark-trust-bank.netlify.app/** |
-| API docs (Swagger) | **https://konark-trust-bank.onrender.com/api/docs/** |
+| Website | **https://YOUR-SITE.netlify.app** |
+| API docs (Swagger) | **https://YOUR-API.onrender.com/api/docs/** |
+
+
+| Role | Username | Password |
+| :--- | :--- | :--- |
+| Employee | sunitamohanty | Mohanty@09 |
+| Customer | 2306anup | Sonu@12345 |
+| Customer | sonu09 | Anup@12345 |
+| Customer | tapas12 | Spring@12345 |
+| Customer | subrat23 | Konark@12345 |
+
 
 > The backend runs on a free Render plan and sleeps when idle, so the first request can take about 30 seconds.
 > Demo logins are listed in [Demo logins](#demo-logins-after-seed_demo). Please use test data only.
@@ -49,7 +59,7 @@ session id inside the token, so one user can have only one live login. Every vie
 **Stack:** React · Tailwind CSS · Django · Django REST Framework · PostgreSQL · JWT
 
 **Highlights:** atomic transfers with row locking · fixed and recurring deposits · debit cards with block/unblock ·
-QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
+notification bell · spending charts · QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
 one live login per user and 10-minute idle logout · per-user dark mode · phone-friendly layout ·
 Swagger API docs · automated tests and CI.
 
@@ -278,4 +288,7 @@ GitHub Actions CI running the tests, a multi-threaded test for concurrent transf
 
 ## Author
 
-Built by *Your Name* as a full-stack Python portfolio project. (Add your name, GitHub and LinkedIn here.)
+Built by **Anup Prasad** as a full-stack Python Developer.
+
+- GitHub: https://github.com/anupprasad-dev
+- LinkedIn: https://www.linkedin.com/in/anupprasad-dev

@@ -1,6 +1,4 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
-
 from . import views
 
 urlpatterns = [
@@ -12,9 +10,13 @@ urlpatterns = [
     path("auth/register/", views.RegisterView.as_view()),
     path("auth/login-activity/", views.LoginActivityView.as_view()),
     path("auth/me/", views.MeView.as_view()),
+    path("notifications/", views.NotificationListView.as_view()),
+    path("notifications/read/", views.NotificationReadView.as_view()),
+    path("notifications/<int:pk>/read/", views.NotificationReadView.as_view()),
     path("auth/change-password/", views.ChangePasswordView.as_view()),
     # customer
     path("customer/account/", views.MyAccountView.as_view()),
+    path("customer/analytics/", views.SpendingAnalyticsView.as_view()),
     path("customer/transactions/", views.MyTransactionsView.as_view()),
     path("customer/statement/", views.StatementView.as_view()),
     path("customer/transfer/", views.TransferView.as_view()),
@@ -30,6 +32,7 @@ urlpatterns = [
     path("customer/deposits/<int:pk>/pay/", views.PayInstallmentView.as_view()),
     path("customer/deposits/<int:pk>/close/", views.CloseDepositView.as_view()),
     # employee
+    path("employee/summary/", views.EmployeeSummaryView.as_view()),
     path("employee/requests/", views.RegistrationRequestListView.as_view()),
     path("employee/requests/<int:pk>/approve/", views.ApproveRequestView.as_view()),
     path("employee/requests/<int:pk>/reject/", views.RejectRequestView.as_view()),

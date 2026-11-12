@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { WheelMark } from "../../components/Brand.jsx";
 import Greeting from "../../components/Greeting.jsx";
+import SpendingChart from "../../components/SpendingChart.jsx";
 import Icon from "../../components/icons.jsx";
-import { Alert, Avatar, Badge, DirectionIcon, Empty, formatDate, formatINR, Spinner } from "../../components/ui.jsx";
+import { Alert, Avatar, Badge, DirectionIcon, Empty, formatINR, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const groupDigits = (value = "") => String(value).replace(/(.{4})/g, "$1 ").trim();
@@ -32,34 +33,13 @@ export default function CustomerDashboard() {
   const account = useApi("/customer/account/");
   const recent = useApi("/customer/transactions/", { page_size: 6 });
   const people = useApi("/customer/beneficiaries/");
-  const month = useApi("/customer/transactions/", { page_size: 50 });
+  const stats = useApi("/customer/analytics/");
   const [showBalance, setShowBalance] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (account.loading) return <Spinner />;
   if (account.error) return <Alert>{account.error}</Alert>;
   const acc = account.data;
-
-  // money in / out for this calendar month, from the latest 50 entries
-  const monthly = (() => {
-    const rows = month.data?.results;
-    if (!rows) return { ready: false };
-    const now = new Date();
-    let credit = 0;
-    let debit = 0;
-    let all = true;
-    rows.forEach((t) => {
-      const d = new Date(t.created_at);
-      if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) {
-        all = false;
-        return;
-      }
-      if (t.status === "cancelled") return;
-      if (t.direction === "CREDIT") credit += Number(t.amount);
-      else debit += Number(t.amount);
-    });
-    return { ready: true, credit, debit, capped: all && rows.length >= 50 };
-  })();
 
   const copy = async () => {
     try {
@@ -142,8 +122,8 @@ export default function CustomerDashboard() {
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { icon: "send", label: `Money in${monthly.capped ? " (this month, 50+)" : " this month"}`, value: monthly.ready ? formatINR(monthly.credit) : "-", to: "/customer/history", tone: "bg-emerald-50 text-emerald-600" },
-          { icon: "wallet", label: `Money out${monthly.capped ? " (this month, 50+)" : " this month"}`, value: monthly.ready ? formatINR(monthly.debit) : "-", to: "/customer/history", tone: "bg-rose-50 text-rose-600" },
+          { icon: "send", label: "Money in this month", value: stats.data ? formatINR(stats.data.this_month.credit) : "-", to: "/customer/history", tone: "bg-emerald-50 text-emerald-600" },
+          { icon: "wallet", label: "Money out this month", value: stats.data ? formatINR(stats.data.this_month.debit) : "-", to: "/customer/history", tone: "bg-rose-50 text-rose-600" },
           { icon: "users", label: "Saved beneficiaries", value: people.data ? people.data.length : "-", to: "/customer/beneficiaries", tone: "bg-amber-50 text-amber-600" },
           { icon: "ledger", label: "Total transactions", value: recent.data ? recent.data.count : "-", to: "/customer/history", tone: "bg-amber-50 text-amber-600" },
         ].map((t) => (
@@ -158,6 +138,8 @@ export default function CustomerDashboard() {
           </Link>
         ))}
       </div>
+
+      {stats.data && <SpendingChart data={stats.data} />}
 
       {people.data?.length > 0 && (
         <section className="card mt-4">

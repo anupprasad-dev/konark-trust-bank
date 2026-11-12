@@ -1,6 +1,5 @@
 """Django settings for Konark Trust Bank (demo project)."""
 from datetime import timedelta
-from decimal import Decimal
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 

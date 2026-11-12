@@ -13,6 +13,7 @@ from rest_framework.test import APITestCase
 from django.utils import timezone
 
 from .models import Account, Card, RegistrationRequest, Role, Transaction, User
+from . import services
 from .services import generate_account_number
 
 PASSWORD = "Str0ng#Pass99"
@@ -1614,3 +1615,105 @@ class SingleSessionTests(BankTestBase):
         self.assertEqual(
             self.client.post("/api/auth/login/", {"username": "ravi", "password": PASSWORD}, format="json").status_code, 200
         )
+
+
+class NotificationTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+        self.ravi = make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.employee = make_user("emp1", Role.EMPLOYEE)
+
+    def mine(self, username):
+        self.logout()
+        self.login(username)
+        return self.client.get("/api/notifications/").data
+
+    def test_transfer_notifies_both_people(self):
+        self.login("asha")
+        r = self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": self.ravi.account.account_number, "amount": "100", "password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertIn("sent", self.mine("asha")["results"][0]["title"])
+        got = self.mine("ravi")
+        self.assertEqual(got["unread"], 1)
+        self.assertIn("received", got["results"][0]["title"])
+
+    def test_mark_read_one_and_all(self):
+        services.notify(self.asha, "account", "One")
+        services.notify(self.asha, "account", "Two")
+        self.login("asha")
+        data = self.client.get("/api/notifications/").data
+        self.assertEqual(data["unread"], 2)
+        self.client.post(f"/api/notifications/{data['results'][0]['id']}/read/")
+        self.assertEqual(self.client.get("/api/notifications/").data["unread"], 1)
+        self.client.post("/api/notifications/read/")
+        self.assertEqual(self.client.get("/api/notifications/").data["unread"], 0)
+
+    def test_cannot_read_someone_elses(self):
+        services.notify(self.ravi, "account", "Private")
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/notifications/").data["results"], [])
+        nid = self.ravi.notifications.first().id
+        self.client.post(f"/api/notifications/{nid}/read/")
+        self.assertFalse(self.ravi.notifications.first().is_read)
+
+    def test_card_decision_notifies(self):
+        card = Card.objects.create(user=self.asha, card_type="debit")
+        self.login("emp1")
+        self.client.post(f"/api/employee/cards/{card.id}/reject/", {"reason": "Documents missing"}, format="json")
+        got = self.mine("asha")["results"][0]
+        self.assertIn("rejected", got["title"])
+        self.assertIn("Documents missing", got["body"])
+
+    def test_only_latest_kept(self):
+        for i in range(services.KEEP_NOTIFICATIONS + 5):
+            services.notify(self.asha, "account", f"n{i}")
+        self.assertEqual(self.asha.notifications.count(), services.KEEP_NOTIFICATIONS)
+
+
+class AnalyticsTests(BankTestBase):
+    def test_month_totals_and_breakdown(self):
+        asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+        ravi = make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.login("asha")
+        self.client.post(
+            "/api/customer/transfer/",
+            {"to_account_number": ravi.account.account_number, "amount": "250", "password": PASSWORD},
+            format="json",
+        )
+        data = self.client.get("/api/customer/analytics/").data
+        self.assertEqual(len(data["months"]), 6)
+        self.assertEqual(data["this_month"]["debit"], 250.0)
+        self.assertEqual(data["months"][-1]["debit"], 250.0)
+        self.assertEqual(data["breakdown"][0], {"label": "Transfers", "amount": 250.0})
+
+    def test_employee_cannot_open(self):
+        make_user("emp1", Role.EMPLOYEE)
+        self.login("emp1")
+        self.assertEqual(self.client.get("/api/customer/analytics/").status_code, 403)
+
+
+class EmployeeSummaryTests(BankTestBase):
+    def test_counts(self):
+        emp = make_user("emp1", Role.EMPLOYEE)
+        asha = make_user("asha", Role.CUSTOMER, with_account=True)
+        Card.objects.create(user=asha, card_type="debit")
+        self.login("emp1")
+        self.client.post(
+            "/api/employee/deposit/", {"account_number": asha.account.account_number, "amount": "500"}, format="json"
+        )
+        data = self.client.get("/api/employee/summary/").data
+        self.assertEqual(data["pending_cards"], 1)
+        self.assertEqual(data["customers"], 1)
+        self.assertEqual(data["deposits_today"], 1)
+        self.assertEqual(Decimal(str(data["deposits_today_total"])), Decimal("500"))
+        self.assertEqual(data["pending_requests"], 0)
+
+    def test_customer_cannot_open(self):
+        make_user("asha", Role.CUSTOMER, with_account=True)
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/employee/summary/").status_code, 403)
