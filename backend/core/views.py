@@ -63,6 +63,9 @@ class LoginView(TokenObtainPairView):
             response = super().post(request, *args, **kwargs)
         except AuthenticationFailed:
             self._log(request, False)  # wrong password for a real username
+            known = User.objects.filter(username=str(request.data.get("username", "")).strip().lower()).first()
+            if known:
+                services.register_failed_login(known)
             raise
         self._log(request, True)
         return response
@@ -408,6 +411,7 @@ class ResetCustomerPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
         customer.set_password(serializer.validated_data["new_password"])
         customer.save(update_fields=["password"])
+        services.clear_failed_logins(customer)  # a new password also unlocks the account
         authentication.end_session(customer)  # the old password's login stops working
         services.audit(request, "password_reset", f"@{customer.username}")
         return Response({
@@ -615,6 +619,18 @@ class AdminToggleActiveView(APIView):
         Account.objects.filter(user=user).update(is_active=user.is_active)
         services.audit(request, "user_unblocked" if user.is_active else "user_blocked", f"@{user.username}")
         return Response({"id": user.id, "is_active": user.is_active})
+
+
+class AdminUnlockView(APIView):
+    """Remove the wrong-password lock from a customer or employee."""
+
+    permission_classes = [IsBankAdmin]
+
+    def post(self, request, pk):
+        user = get_object_or_404(User.objects.exclude(role=Role.ADMIN), pk=pk)
+        services.clear_failed_logins(user)
+        services.audit(request, "user_unlocked", f"@{user.username}")
+        return Response({"id": user.id, "is_locked": False})
 
 
 class AdminTransactionListView(generics.ListAPIView):

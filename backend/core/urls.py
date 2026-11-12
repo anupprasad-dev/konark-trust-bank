@@ -60,6 +60,7 @@ urlpatterns = [
     path("admin-panel/employees/", views.AdminEmployeeListCreateView.as_view()),
     path("admin-panel/customers/", views.AdminCustomerListView.as_view()),
     path("admin-panel/users/<int:pk>/toggle-active/", views.AdminToggleActiveView.as_view()),
+    path("admin-panel/users/<int:pk>/unlock/", views.AdminUnlockView.as_view()),
     path("admin-panel/audit/", views.AdminAuditLogView.as_view()),
     path("admin-panel/feedback/", views.AdminFeedbackListView.as_view()),
     path("admin-panel/transactions/", views.AdminTransactionListView.as_view()),

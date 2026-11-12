@@ -38,6 +38,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.NoStoreAPIMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -170,7 +171,17 @@ CORS_EXPOSE_HEADERS = ["Content-Disposition"]  # lets the frontend read the PDF 
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
 
 # ---------------------------------------------------------------- Production
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+
 if not DEBUG:
+    if SECRET_KEY == "dev-insecure-key-change-me":
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured("Set a long random SECRET_KEY in the environment when DEBUG is False.")
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=2592000, cast=int)  # browsers insist on https for 30 days
+    SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)  # Render already redirects http to https

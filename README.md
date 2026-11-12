@@ -50,7 +50,7 @@ session id inside the token, so one user can have only one live login. Every vie
 
 **Highlights:** atomic transfers with row locking · fixed and recurring deposits · debit cards with block/unblock ·
 loans with EMI schedule and early closing · admin dashboard with charts · notification bell · spending charts · QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
-one live login per user and 10-minute idle logout · per-user dark mode · phone-friendly layout ·
+one live login per user, 10-minute idle logout, account lock after 5 wrong passwords, no-store API responses and security headers · per-user dark mode · phone-friendly layout ·
 Swagger API docs · automated tests and CI.
 
 ---

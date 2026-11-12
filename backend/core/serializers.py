@@ -29,6 +29,18 @@ def money_field():
     )
 
 
+def _password_ok(user, raw):
+    """Check the password the logged-in user typed again. Wrong tries are counted: after a few the
+    account is locked and logged out, so a stolen login cannot be used to guess the password."""
+    if services.is_locked(user):
+        raise serializers.ValidationError(services.lock_message(user))
+    if user.check_password(raw):
+        services.clear_failed_logins(user)
+        return True
+    services.register_failed_login(user)
+    return False
+
+
 def _check_password_strength(password, username="", email=""):
     try:
         validate_password(password, user=User(username=username, email=email))
@@ -78,7 +90,7 @@ class ChangePasswordSerializer(serializers.Serializer):
     confirm_password = serializers.CharField(write_only=True)
 
     def validate_old_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Your current password is incorrect.")
         return value
 
@@ -112,7 +124,11 @@ class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         attrs["username"] = attrs.get("username", "").strip().lower()
         portal = attrs.pop("portal", None)
+        known = User.objects.filter(username=attrs["username"]).first()
+        if known and services.is_locked(known):
+            raise authentication.AccountLocked(services.lock_message(known))
         data = super().validate(attrs)
+        services.clear_failed_logins(self.user)
         if portal == "customer" and self.user.role != Role.CUSTOMER:
             raise PermissionDenied("Employees and admins must use Staff Login.")
         if portal == "staff" and self.user.role == Role.CUSTOMER:
@@ -295,7 +311,7 @@ class ResetCustomerPasswordSerializer(serializers.Serializer):
     employee_password = serializers.CharField(write_only=True)
 
     def validate_employee_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Your own password is incorrect.")
         return value
 
@@ -323,7 +339,7 @@ class CustomerDetailsSerializer(serializers.Serializer):
     employee_password = serializers.CharField(write_only=True)
 
     def validate_employee_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Your own password is incorrect.")
         return value
 
@@ -457,7 +473,7 @@ class TransferSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 
@@ -501,12 +517,16 @@ class CustomerListSerializer(serializers.ModelSerializer):
     account_number = serializers.SerializerMethodField()
     balance = serializers.SerializerMethodField()
     photo = serializers.SerializerMethodField()
+    account_id = serializers.SerializerMethodField()
+    daily_limit = serializers.SerializerMethodField()
+    transferred_today = serializers.SerializerMethodField()
+    is_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "full_name", "email", "phone", "date_of_birth", "photo", "is_active",
-            "date_joined", "account_number", "balance",
+            "date_joined", "account_number", "balance", "account_id", "daily_limit", "transferred_today", "is_locked",
         ]
 
     def get_photo(self, obj):
@@ -514,6 +534,18 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
     def get_account_number(self, obj):
         return obj.account.account_number if hasattr(obj, "account") else None
+
+    def get_account_id(self, obj):
+        return obj.account.id if hasattr(obj, "account") else None
+
+    def get_daily_limit(self, obj):
+        return str(obj.account.daily_limit) if hasattr(obj, "account") else None
+
+    def get_transferred_today(self, obj):
+        return str(services.transferred_today(obj.account)) if hasattr(obj, "account") else None
+
+    def get_is_locked(self, obj):
+        return services.is_locked(obj)
 
     def get_balance(self, obj):
         return str(obj.account.balance) if hasattr(obj, "account") else None
@@ -593,7 +625,7 @@ class OpenDepositSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 
@@ -606,7 +638,7 @@ class StatementRequestSerializer(serializers.Serializer):
     date_to = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 
@@ -621,7 +653,7 @@ class PasswordConfirmSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 
@@ -711,7 +743,7 @@ class ApplyLoanSerializer(LoanQuoteSerializer):
     password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
-        if not self.context["request"].user.check_password(value):
+        if not _password_ok(self.context["request"].user, value):
             raise serializers.ValidationError("Incorrect password.")
         return value
 

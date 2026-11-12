@@ -1,6 +1,7 @@
 import io
 import os
 import tempfile
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.hashers import make_password
@@ -1849,3 +1850,80 @@ class LoanTests(BankTestBase):
         loan_id = self.approved_loan(amount="10000", months=12)
         Account.objects.filter(user=self.asha).update(balance=Decimal("10"))
         self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/close/", {"password": PASSWORD}, format="json").status_code, 400)
+
+
+class LockoutTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+
+    def try_login(self, password):
+        return self.client.post("/api/auth/login/", {"username": "asha", "password": password}, format="json")
+
+    def test_five_wrong_passwords_lock_the_account(self):
+        for _ in range(4):
+            self.assertEqual(self.try_login("nope").status_code, 401)
+        self.assertEqual(self.try_login("nope").status_code, 401)  # the fifth wrong try sets the lock
+        r = self.try_login(PASSWORD)  # even the right password is refused now
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("locked", r.data["detail"])
+
+    def test_good_login_resets_the_count(self):
+        for _ in range(4):
+            self.try_login("nope")
+        self.assertEqual(self.try_login(PASSWORD).status_code, 200)
+        self.asha.refresh_from_db()
+        self.assertEqual(self.asha.failed_logins, 0)
+        for _ in range(4):
+            self.assertEqual(self.try_login("nope").status_code, 401)
+
+    def test_lock_ends_after_the_time(self):
+        for _ in range(5):
+            self.try_login("nope")
+        User.objects.filter(pk=self.asha.pk).update(locked_until=timezone.now() - timedelta(minutes=1))
+        self.assertEqual(self.try_login(PASSWORD).status_code, 200)
+
+    def test_unknown_username_is_not_locked_or_revealed(self):
+        for _ in range(7):
+            r = self.client.post("/api/auth/login/", {"username": "ghost", "password": "x"}, format="json")
+            self.assertEqual(r.status_code, 401)
+
+    def test_wrong_password_on_a_payment_counts_and_logs_the_session_out(self):
+        make_user("ravi", Role.CUSTOMER, with_account=True)
+        self.login("asha")
+        body = {"to_account_number": User.objects.get(username="ravi").account.account_number, "amount": "10", "password": "bad"}
+        for _ in range(5):
+            self.assertEqual(self.client.post("/api/customer/transfer/", body, format="json").status_code, 400)
+        self.asha.refresh_from_db()
+        self.assertTrue(services.is_locked(self.asha))
+        body["password"] = PASSWORD  # the right password does not help while locked
+        self.assertEqual(self.client.post("/api/customer/transfer/", body, format="json").status_code, 400)
+
+    def test_password_reset_unlocks(self):
+        for _ in range(5):
+            self.try_login("nope")
+        make_user("emp1", Role.EMPLOYEE)
+        self.login("emp1")
+        r = self.client.post(
+            f"/api/employee/accounts/{self.asha.account.id}/reset-password/",
+            {"new_password": "Fresh@Pass99", "confirm_password": "Fresh@Pass99", "employee_password": PASSWORD},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        self.asha.refresh_from_db()
+        self.assertFalse(services.is_locked(self.asha))
+
+    def test_admin_can_unlock(self):
+        for _ in range(5):
+            self.try_login("nope")
+        make_user("boss", Role.ADMIN)
+        self.login("boss")
+        listing = self.client.get("/api/admin-panel/customers/").data["results"][0]
+        self.assertTrue(listing["is_locked"])
+        self.assertEqual(self.client.post(f"/api/admin-panel/users/{self.asha.id}/unlock/").status_code, 200)
+        self.assertFalse(self.client.get("/api/admin-panel/customers/").data["results"][0]["is_locked"])
+
+    def test_api_answers_are_never_cached(self):
+        self.login("asha")
+        r = self.client.get("/api/customer/account/")
+        self.assertEqual(r["Cache-Control"], "no-store")

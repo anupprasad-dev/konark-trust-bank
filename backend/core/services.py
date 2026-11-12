@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from . import photos
+from . import authentication, photos
 from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, Loan, Notification, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
@@ -786,6 +786,41 @@ def pay_emi(*, user, loan_id):
                f"{loan.tenure_months - loan.installments_paid} instalments left on {loan.reference}.")
     loan.save()
     return loan
+
+
+# ------------------------------------------------------------------ wrong-password lock
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 15
+
+
+def is_locked(user):
+    return bool(user.locked_until and user.locked_until > timezone.now())
+
+
+def lock_message(user):
+    until = timezone.localtime(user.locked_until).strftime("%I:%M %p")
+    return f"Too many wrong passwords. This account is locked until {until}. A bank employee can unlock it sooner."
+
+
+def register_failed_login(user):
+    """Count a wrong password. After MAX_FAILED_LOGINS in a row the account is locked for a while and logged out.
+    Used for the login page and for every place that asks the logged-in user for their password again."""
+    now = timezone.now()
+    if user.locked_until and user.locked_until <= now:  # an old lock has ended: start counting again
+        user.failed_logins, user.locked_until = 0, None
+    user.failed_logins += 1
+    if user.failed_logins >= MAX_FAILED_LOGINS:
+        user.locked_until = now + timedelta(minutes=LOCK_MINUTES)
+        user.failed_logins = 0
+        authentication.end_session(user)  # tokens that may be in the wrong hands stop working
+    user.save(update_fields=["failed_logins", "locked_until"])
+    return is_locked(user)
+
+
+def clear_failed_logins(user):
+    if user.failed_logins or user.locked_until:
+        user.failed_logins, user.locked_until = 0, None
+        user.save(update_fields=["failed_logins", "locked_until"])
 
 
 # ------------------------------------------------------------------ security

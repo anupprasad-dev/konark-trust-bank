@@ -20,6 +20,12 @@ SESSION_IDLE = timedelta(minutes=10)  # keep in step with IDLE_MS in IdleGuard.j
 TOUCH_EVERY = timedelta(seconds=30)  # do not write to the database on every single request
 
 
+class AccountLocked(APIException):
+    status_code = 429
+    default_code = "account_locked"
+    default_detail = "Too many wrong passwords. Please try again later."
+
+
 class AlreadyLoggedIn(APIException):
     status_code = 409
     default_code = "already_logged_in"
