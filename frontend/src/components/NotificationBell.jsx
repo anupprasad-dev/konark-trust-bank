@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import api from "../api";
 import Icon from "./icons.jsx";
 
@@ -76,8 +77,9 @@ export default function NotificationBell({ className = "" }) {
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)}>
+      {open &&
+        createPortal(
+        <div className="modal-backdrop fixed inset-0 z-[100] bg-slate-900/30 md:bg-transparent" onClick={() => setOpen(false)}>
           <div
             onClick={(e) => e.stopPropagation()}
             role="dialog"
@@ -127,7 +129,8 @@ export default function NotificationBell({ className = "" }) {
               )}
             </ul>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
