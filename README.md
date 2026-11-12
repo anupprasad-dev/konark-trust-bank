@@ -49,7 +49,7 @@ session id inside the token, so one user can have only one live login. Every vie
 **Stack:** React · Tailwind CSS · Django · Django REST Framework · PostgreSQL · JWT
 
 **Highlights:** atomic transfers with row locking · fixed and recurring deposits · debit cards with block/unblock ·
-loans with EMI schedule · notification bell · spending charts · QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
+loans with EMI schedule and early closing · admin dashboard with charts · notification bell · spending charts · QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
 one live login per user and 10-minute idle logout · per-user dark mode · phone-friendly layout ·
 Swagger API docs · automated tests and CI.
 
@@ -175,6 +175,8 @@ npm run dev
 
 Open <http://localhost:5173>.
 
+Run the frontend tests with `npm test` (Vitest and Testing Library).
+
 ### Demo logins (after `seed_demo`)
 
 | Role | Username | Password |
@@ -206,7 +208,7 @@ python manage.py test
 The tests cover registration, approval and rejection, atomic transfers
 (including insufficient balance and invalid input), history filters,
 beneficiaries, and permissions between the three roles, plus cards, deposits, security limits and the
-one-live-login rule. GitHub Actions runs the same tests on PostgreSQL, checks migrations and builds the frontend on every push.
+one-live-login rule. GitHub Actions runs the same tests on PostgreSQL, checks migrations, runs the frontend tests (Vitest) and builds the frontend on every push.
 
 ---
 

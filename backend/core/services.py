@@ -722,6 +722,41 @@ def reject_loan(*, employee, loan_id, reason):
     return loan
 
 
+FORECLOSURE_CHARGE = Decimal("1.00")  # percent of the principal still owed, for closing a loan early
+
+
+def foreclosure_quote(loan):
+    """What it costs to close the loan today: the principal still owed plus a small charge. No interest for months to come."""
+    if loan.status != Loan.Status.ACTIVE:
+        raise BankError("This loan is not being repaid right now.")
+    rows = loan_schedule(loan.amount, loan.interest_rate, loan.tenure_months, loan.start_date)
+    principal = rows[loan.installments_paid - 1]["balance"] if loan.installments_paid else loan.amount
+    charge = (principal * FORECLOSURE_CHARGE / 100).quantize(PAISE, ROUND_HALF_UP)
+    return {"principal": principal, "charge": charge, "total": principal + charge, "emis_left": loan.tenure_months - loan.installments_paid}
+
+
+@transaction.atomic
+def foreclose_loan(*, user, loan_id):
+    try:
+        loan = Loan.objects.select_for_update().get(pk=loan_id, user=user)
+    except Loan.DoesNotExist:
+        raise BankError("Loan not found.")
+    quote = foreclosure_quote(loan)
+    account = _lock_account(user)
+    if account.balance < quote["total"]:
+        raise BankError(f"You need Rs. {quote['total']:,.2f} in your account to close this loan.")
+    account.balance -= quote["total"]
+    account.save(update_fields=["balance"])
+    Transaction.objects.create(
+        txn_type=Transaction.Type.LOAN_EMI, from_account=account, amount=quote["total"],
+        remark=f"Loan {loan.reference} closed early", performed_by=user,
+    )
+    loan.status, loan.next_due_date, loan.closed_at = Loan.Status.CLOSED, None, timezone.now()
+    loan.save()
+    notify(user, Notification.Kind.LOAN, "Loan closed early", f"Loan {loan.reference} is fully paid with Rs. {quote['total']:,.2f}.")
+    return loan
+
+
 @transaction.atomic
 def pay_emi(*, user, loan_id):
     try:

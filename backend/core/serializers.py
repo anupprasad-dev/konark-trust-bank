@@ -722,10 +722,11 @@ class LoanSerializer(serializers.ModelSerializer):
     outstanding = serializers.SerializerMethodField()
     overdue = serializers.SerializerMethodField()
     schedule = serializers.SerializerMethodField()
+    closed_early = serializers.SerializerMethodField()
 
     class Meta:
         model = Loan
-        fields = [
+        fields = ["closed_early",
             "id", "reference", "purpose", "purpose_label", "status", "amount", "tenure_months", "interest_rate",
             "emi", "total_payable", "installments_paid", "start_date", "next_due_date", "rejection_reason",
             "reviewed_at", "closed_at", "created_at", "progress", "outstanding", "overdue", "schedule",
@@ -737,6 +738,8 @@ class LoanSerializer(serializers.ModelSerializer):
         return services.loan_schedule(obj.amount, obj.interest_rate, obj.tenure_months, obj.start_date)
 
     def get_progress(self, obj):
+        if obj.status == Loan.Status.CLOSED:
+            return 100
         return round(obj.installments_paid * 100 / obj.tenure_months) if obj.tenure_months else 0
 
     def get_outstanding(self, obj):
@@ -745,6 +748,9 @@ class LoanSerializer(serializers.ModelSerializer):
             return Decimal("0.00") if obj.status == Loan.Status.CLOSED else obj.amount
         rows = self._rows(obj)
         return rows[obj.installments_paid - 1]["balance"] if obj.installments_paid else obj.amount
+
+    def get_closed_early(self, obj):
+        return obj.status == Loan.Status.CLOSED and obj.installments_paid < obj.tenure_months
 
     def get_overdue(self, obj):
         return bool(obj.status == Loan.Status.ACTIVE and obj.next_due_date and obj.next_due_date < date.today())

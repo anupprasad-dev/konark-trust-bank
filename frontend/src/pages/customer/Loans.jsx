@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Greeting from "../../components/Greeting.jsx";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
-import { Alert, Badge, Empty, formatDay, formatINR, Input, Modal, PageHeader, PasswordInput, Spinner } from "../../components/ui.jsx";
+import { Alert, Badge, formatDay, formatINR, Input, Modal, PageHeader, PasswordInput, Spinner } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
 const PURPOSES = [
@@ -27,6 +27,7 @@ export default function Loans() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [paying, setPaying] = useState(null);
+  const [closing, setClosing] = useState(null);
 
   // the EMI calculator asks the server, so the numbers always match what is booked
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function Loans() {
         <Spinner />
       ) : (
         <>
-          {open && <LoanCard loan={open} onPay={() => setPaying(open)} />}
+          {open && <LoanCard loan={open} onPay={() => setPaying(open)} onClose={() => setClosing(open)} />}
 
           {!open && (
             <form onSubmit={apply} className="card mb-5 grid gap-5 lg:grid-cols-5">
@@ -164,7 +165,7 @@ export default function Loans() {
                   <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3.5 sm:px-6">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-800">{l.purpose_label} <span className="num font-mono text-xs font-semibold text-slate-400">{l.reference}</span></p>
-                      <p className="text-xs text-slate-500">{l.status === "rejected" && l.rejection_reason ? `Reason: ${l.rejection_reason}` : `Applied ${formatDay(l.created_at)}`}</p>
+                      <p className="text-xs text-slate-500">{l.status === "rejected" && l.rejection_reason ? `Reason: ${l.rejection_reason}` : l.closed_early ? `Closed early on ${formatDay(l.closed_at)}` : `Applied ${formatDay(l.created_at)}`}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="num text-sm font-extrabold text-slate-900">{formatINR(l.amount)}</span>
@@ -178,6 +179,18 @@ export default function Loans() {
 
           {!loans.length && !open && <p className="mt-2 text-center text-sm text-slate-500">You have no loans yet.</p>}
         </>
+      )}
+
+      {closing && (
+        <CloseDialog
+          loan={closing}
+          onClose={() => setClosing(null)}
+          onDone={(message) => {
+            setClosing(null);
+            setNotice(message);
+            list.reload();
+          }}
+        />
       )}
 
       {paying && (
@@ -195,7 +208,7 @@ export default function Loans() {
   );
 }
 
-function LoanCard({ loan, onPay }) {
+function LoanCard({ loan, onPay, onClose }) {
   const [showAll, setShowAll] = useState(false);
   const pending = loan.status === "pending";
   const rows = showAll ? loan.schedule : loan.schedule.filter((r) => !r.paid).slice(0, 4);
@@ -244,9 +257,12 @@ function LoanCard({ loan, onPay }) {
       ) : (
         <div className="p-4 sm:p-5">
           {loan.overdue && <Alert>Your EMI was due on {formatDay(loan.next_due_date)}. Please pay it as soon as you can.</Alert>}
-          <button className="btn-primary w-full sm:w-auto" onClick={onPay}>
-            Pay EMI of {formatINR(loan.schedule[loan.installments_paid]?.emi ?? loan.emi)}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button className="btn-primary w-full sm:w-auto" onClick={onPay}>
+              Pay EMI of {formatINR(loan.schedule[loan.installments_paid]?.emi ?? loan.emi)}
+            </button>
+            <button className="btn-outline w-full sm:w-auto" onClick={onClose}>Close loan early</button>
+          </div>
 
           <div className="mt-5 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900">{showAll ? "All instalments" : "Coming up"}</h3>
@@ -315,6 +331,60 @@ function PayDialog({ loan, onClose, onDone }) {
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
           <button className="btn-primary" disabled={busy}>{busy ? "Please wait..." : "Pay now"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CloseDialog({ loan, onClose, onDone }) {
+  const [quote, setQuote] = useState(null);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .get(`/customer/loans/${loan.id}/close/`)
+      .then(({ data }) => setQuote(data))
+      .catch((err) => setError(errorMessage(err)));
+  }, [loan.id]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post(`/customer/loans/${loan.id}/close/`, { password });
+      onDone(`Loan ${data.reference} is closed. Thank you!`);
+    } catch (err) {
+      setError(fieldErrors(err).password || errorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Close loan early" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        {quote ? (
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm">
+            <p className="text-center text-xs text-slate-500">You pay today</p>
+            <p className="num text-center text-3xl font-extrabold text-slate-900">{formatINR(quote.total)}</p>
+            <dl className="mt-3 space-y-1.5 border-t border-slate-200 pt-3">
+              <div className="flex justify-between"><dt className="text-slate-500">Principal still owed</dt><dd className="num font-semibold">{formatINR(quote.principal)}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">Closing charge (1%)</dt><dd className="num font-semibold">{formatINR(quote.charge)}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">EMIs you skip</dt><dd className="num font-semibold">{quote.emis_left}</dd></div>
+            </dl>
+            <p className="mt-3 text-xs text-slate-500">You do not pay interest for the months that are left.</p>
+          </div>
+        ) : (
+          !error && <Spinner />
+        )}
+        <Alert>{error}</Alert>
+        <PasswordInput label="Your password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={busy || !quote}>{busy ? "Please wait..." : "Pay and close loan"}</button>
         </div>
       </form>
     </Modal>

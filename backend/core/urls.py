@@ -30,6 +30,7 @@ urlpatterns = [
     path("customer/loans/", views.MyLoansView.as_view()),
     path("customer/loans/quote/", views.LoanQuoteView.as_view()),
     path("customer/loans/<int:pk>/pay/", views.PayEmiView.as_view()),
+    path("customer/loans/<int:pk>/close/", views.ForecloseLoanView.as_view()),
     path("customer/deposits/", views.MyDepositsView.as_view()),
     path("customer/deposits/quote/", views.DepositQuoteView.as_view()),
     path("customer/deposits/<int:pk>/pay/", views.PayInstallmentView.as_view()),

@@ -1,4 +1,5 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 
 from django.db.models import Avg, Count, Q, Sum
 from django.http import HttpResponse
@@ -508,7 +509,70 @@ class AdminStatsView(APIView):
             "pending_cards": Card.objects.filter(status=Card.Status.PENDING).count(),
             "feedback_count": Feedback.objects.count(),
             "average_rating": round(Feedback.objects.aggregate(a=Avg("rating"))["a"] or 0, 1),
+            **self.more(),
         })
+
+    @staticmethod
+    def more():
+        today = timezone.localdate()
+
+        # last six months: new customers and transactions
+        months, y, m = [], today.year, today.month
+        for _ in range(6):
+            months.append((y, m))
+            y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+        months.reverse()
+        start = timezone.make_aware(datetime(months[0][0], months[0][1], 1))
+        table = {key: {"customers": 0, "transactions": 0, "volume": Decimal("0")} for key in months}
+        for joined in User.objects.filter(role=Role.CUSTOMER, date_joined__gte=start).values_list("date_joined", flat=True):
+            j = timezone.localtime(joined)
+            if (j.year, j.month) in table:
+                table[(j.year, j.month)]["customers"] += 1
+        txns = Transaction.objects.filter(created_at__gte=start).exclude(status=Transaction.Status.CANCELLED)
+        for when, amount in txns.values_list("created_at", "amount"):
+            t = timezone.localtime(when)
+            if (t.year, t.month) in table:
+                table[(t.year, t.month)]["transactions"] += 1
+                table[(t.year, t.month)]["volume"] += amount
+
+        loans = {s: Loan.objects.filter(status=s).count() for s in Loan.Status.values}
+        lent = Loan.objects.filter(status__in=[Loan.Status.ACTIVE, Loan.Status.CLOSED]).aggregate(t=Sum("amount"))["t"] or 0
+
+        held = Decimal("0")
+        active_deposits = list(Deposit.objects.filter(status=Deposit.Status.ACTIVE))
+        for dep in active_deposits:
+            held += dep.total_invested
+
+        since = timezone.now() - timedelta(days=7)
+        staff = (
+            AuditLog.objects.filter(created_at__gte=since, actor_role__in=[Role.EMPLOYEE, Role.ADMIN])
+            .values("actor_name", "actor_role").annotate(n=Count("id")).order_by("-n")[:5]
+        )
+        recent = [
+            {"actor": a.actor_name, "action": a.action.replace("_", " "), "target": a.target, "created_at": a.created_at}
+            for a in AuditLog.objects.order_by("-created_at")[:6]
+        ]
+        return {
+            "months": [
+                {
+                    "label": date(y, m, 1).strftime("%b"),
+                    "customers": table[(y, m)]["customers"],
+                    "transactions": table[(y, m)]["transactions"],
+                    "volume": str(table[(y, m)]["volume"]),
+                }
+                for (y, m) in months
+            ],
+            "loans": {**loans, "total_lent": str(lent)},
+            "deposits": {"active_count": len(active_deposits), "active_total": str(held)},
+            "staff_activity": [{"name": r["actor_name"], "role": r["actor_role"], "actions": r["n"]} for r in staff],
+            "recent_audit": recent,
+            "alerts": {
+                "overdue_loans": Loan.objects.filter(status=Loan.Status.ACTIVE, next_due_date__lt=today).count(),
+                "frozen_accounts": Account.objects.filter(is_frozen=True).count(),
+                "blocked_accounts": Account.objects.filter(is_active=False).count(),
+                "pending_loans": loans.get(Loan.Status.PENDING, 0),
+            },
+        }
 
 
 class AdminEmployeeListCreateView(generics.ListCreateAPIView):
@@ -1010,6 +1074,27 @@ class PayEmiView(APIView):
         PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
         try:
             loan = services.pay_emi(user=request.user, loan_id=pk)
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(LoanSerializer(loan).data)
+
+
+class ForecloseLoanView(APIView):
+    """GET shows what closing the loan today costs. POST (with password) pays it and closes the loan."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk, user=request.user)
+        try:
+            return Response(_money(services.foreclosure_quote(loan)))
+        except services.BankError as exc:
+            return _bad(str(exc))
+
+    def post(self, request, pk):
+        PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
+        try:
+            loan = services.foreclose_loan(user=request.user, loan_id=pk)
         except services.BankError as exc:
             return _bad(str(exc))
         return Response(LoanSerializer(loan).data)

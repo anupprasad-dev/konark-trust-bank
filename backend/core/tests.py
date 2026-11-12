@@ -1251,6 +1251,10 @@ class FeedbackAndProfileTests(BankTestBase):
         stats = self.client.get("/api/admin-panel/stats/").data
         self.assertEqual(stats["feedback_count"], 1)
         self.assertEqual(stats["average_rating"], 4.0)
+        # the dashboard extras
+        for key in ("months", "loans", "deposits", "staff_activity", "recent_audit", "alerts"):
+            self.assertIn(key, stats)
+        self.assertEqual(len(stats["months"]), 6)
 
     def test_last_login_is_the_previous_one(self):
         first = self.login("asha")
@@ -1820,3 +1824,28 @@ class LoanTests(BankTestBase):
         self.logout()
         self.login("ravi")
         self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json").status_code, 400)
+
+
+    def test_foreclose_loan(self):
+        loan_id = self.approved_loan(amount="10000", months=12)
+        self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json")
+        quote = self.client.get(f"/api/customer/loans/{loan_id}/close/")
+        self.assertEqual(quote.status_code, 200, quote.content)
+        total = Decimal(quote.data["total"])
+        self.assertEqual(total, Decimal(quote.data["principal"]) + Decimal(quote.data["charge"]))
+        self.assertLess(Decimal(quote.data["principal"]), Decimal("10000"))
+        Account.objects.filter(user=self.asha).update(balance=total + 5)
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/close/", {"password": "bad"}, format="json").status_code, 400)
+        r = self.client.post(f"/api/customer/loans/{loan_id}/close/", {"password": PASSWORD}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["status"], "closed")
+        self.assertTrue(r.data["closed_early"])
+        self.assertEqual(r.data["progress"], 100)
+        self.asha.account.refresh_from_db()
+        self.assertEqual(self.asha.account.balance, Decimal("5"))
+        self.assertEqual(self.client.get(f"/api/customer/loans/{loan_id}/close/").status_code, 400)
+
+    def test_foreclose_needs_enough_balance(self):
+        loan_id = self.approved_loan(amount="10000", months=12)
+        Account.objects.filter(user=self.asha).update(balance=Decimal("10"))
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/close/", {"password": PASSWORD}, format="json").status_code, 400)
