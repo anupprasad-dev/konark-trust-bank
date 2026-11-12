@@ -9,7 +9,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from . import photos
-from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, Notification, RegistrationRequest, Role, Transaction, User
+from .models import CANCEL_WINDOW, Account, AuditLog, BillPayment, Card, Deposit, Loan, Notification, RegistrationRequest, Role, Transaction, User
 
 MIN_CANCEL_REASON = 20  # characters: the explanation must be a real sentence
 
@@ -595,6 +595,162 @@ def settle_matured_deposits(user=None, today=None):
             notify(dep.user, Notification.Kind.DEPOSIT, f"{dep.get_kind_display()} matured", f"Rs. {payout:,.2f} was added to your account. Ref {dep.reference}.")
             done += 1
     return done
+
+
+# ------------------------------------------------------------------ loans and EMI
+MIN_LOAN, MAX_LOAN = Decimal("5000"), Decimal("1000000")
+MIN_LOAN_MONTHS, MAX_LOAN_MONTHS = 3, 60
+# yearly interest % by purpose (made-up demo rates)
+LOAN_RATES = {
+    Loan.Purpose.HOME: Decimal("8.50"),
+    Loan.Purpose.VEHICLE: Decimal("9.25"),
+    Loan.Purpose.EDUCATION: Decimal("9.75"),
+    Loan.Purpose.BUSINESS: Decimal("11.50"),
+    Loan.Purpose.PERSONAL: Decimal("12.75"),
+}
+
+
+def compute_emi(principal, annual_rate, months):
+    """Equal monthly instalment: P * r * (1+r)^n / ((1+r)^n - 1), with r the monthly rate."""
+    r = annual_rate / Decimal(1200)
+    if r == 0:
+        return (principal / months).quantize(PAISE, ROUND_HALF_UP)
+    grow = (1 + r) ** months
+    return (principal * r * grow / (grow - 1)).quantize(PAISE, ROUND_HALF_UP)
+
+
+def loan_schedule(principal, annual_rate, months, start=None):
+    """Month by month: the instalment, how much of it is interest and principal, and what is still owed.
+    The last instalment is adjusted by a few paise so the loan ends at exactly zero."""
+    emi = compute_emi(principal, annual_rate, months)
+    r = annual_rate / Decimal(1200)
+    balance, rows = principal, []
+    for no in range(1, months + 1):
+        interest = (balance * r).quantize(PAISE, ROUND_HALF_UP)
+        pay = balance + interest if no == months else emi
+        balance = (balance - (pay - interest)).quantize(PAISE, ROUND_HALF_UP)
+        rows.append({
+            "no": no, "due_date": add_months(start, no) if start else None,
+            "emi": pay, "interest": interest, "principal": pay - interest, "balance": balance,
+        })
+    return rows
+
+
+def quote_loan(purpose, amount, months):
+    if purpose not in Loan.Purpose.values:
+        raise BankError("Choose the kind of loan.")
+    if not (MIN_LOAN <= amount <= MAX_LOAN):
+        raise BankError(f"The loan amount must be between {MIN_LOAN:,.0f} and {MAX_LOAN:,.0f} rupees.")
+    if not (MIN_LOAN_MONTHS <= months <= MAX_LOAN_MONTHS):
+        raise BankError(f"The period must be between {MIN_LOAN_MONTHS} and {MAX_LOAN_MONTHS} months.")
+    rate = LOAN_RATES[purpose]
+    rows = loan_schedule(amount, rate, months)
+    total = sum((row["emi"] for row in rows), Decimal("0"))
+    return {
+        "purpose": purpose, "amount": amount, "months": months, "interest_rate": rate,
+        "emi": rows[0]["emi"], "total_payable": total, "total_interest": total - amount,
+    }
+
+
+def _new_loan_ref():
+    while True:
+        ref = "LN" + "".join(secrets.choice("0123456789") for _ in range(8))
+        if not Loan.objects.filter(reference=ref).exists():
+            return ref
+
+
+@transaction.atomic
+def apply_for_loan(*, user, purpose, amount, months):
+    account = _lock_account(user)
+    if not account.is_active:
+        raise BankError("Your account is blocked. Please contact the bank.")
+    if Loan.objects.filter(user=user, status__in=[Loan.Status.PENDING, Loan.Status.ACTIVE]).exists():
+        raise BankError("You already have a loan that is waiting for a decision or is still being repaid.")
+    q = quote_loan(purpose, amount, months)
+    return Loan.objects.create(
+        user=user, reference=_new_loan_ref(), purpose=purpose, amount=amount, tenure_months=months,
+        interest_rate=q["interest_rate"], emi=q["emi"], total_payable=q["total_payable"],
+    )
+
+
+@transaction.atomic
+def approve_loan(*, employee, loan_id):
+    """Pay the loan into the customer's account and start the EMI clock."""
+    try:
+        loan = Loan.objects.select_for_update().select_related("user").get(pk=loan_id)
+    except Loan.DoesNotExist:
+        raise BankError("Loan request not found.")
+    if loan.status != Loan.Status.PENDING:
+        raise BankError("This loan request has already been handled.")
+    account = _lock_account(loan.user)
+    if not account.is_active:
+        raise BankError("The customer's account is blocked, so the loan cannot be paid out.")
+
+    today = timezone.localdate()
+    account.balance += loan.amount
+    account.save(update_fields=["balance"])
+    Transaction.objects.create(
+        txn_type=Transaction.Type.LOAN_PAYOUT, to_account=account, amount=loan.amount,
+        remark=f"{loan.get_purpose_display()} {loan.reference}", performed_by=employee,
+    )
+    loan.status = Loan.Status.ACTIVE
+    loan.start_date = today
+    loan.next_due_date = add_months(today, 1)
+    loan.reviewed_by, loan.reviewed_at = employee, timezone.now()
+    loan.save()
+    notify(loan.user, Notification.Kind.LOAN, "Loan approved",
+           f"Rs. {loan.amount:,.2f} is in your account. First EMI of Rs. {loan.emi:,.2f} is due on {loan.next_due_date:%d %b %Y}.")
+    return loan
+
+
+@transaction.atomic
+def reject_loan(*, employee, loan_id, reason):
+    reason = (reason or "").strip()
+    if not reason:
+        raise BankError("Please write the reason for rejecting this loan request.")
+    try:
+        loan = Loan.objects.select_for_update().get(pk=loan_id)
+    except Loan.DoesNotExist:
+        raise BankError("Loan request not found.")
+    if loan.status != Loan.Status.PENDING:
+        raise BankError("This loan request has already been handled.")
+    loan.status = Loan.Status.REJECTED
+    loan.rejection_reason = reason[:255]
+    loan.reviewed_by, loan.reviewed_at = employee, timezone.now()
+    loan.save()
+    notify(loan.user, Notification.Kind.LOAN, "Loan request rejected", reason[:150])
+    return loan
+
+
+@transaction.atomic
+def pay_emi(*, user, loan_id):
+    try:
+        loan = Loan.objects.select_for_update().get(pk=loan_id, user=user)
+    except Loan.DoesNotExist:
+        raise BankError("Loan not found.")
+    if loan.status != Loan.Status.ACTIVE:
+        raise BankError("This loan is not being repaid right now.")
+    row = loan_schedule(loan.amount, loan.interest_rate, loan.tenure_months, loan.start_date)[loan.installments_paid]
+    account = _lock_account(user)
+    if account.balance < row["emi"]:
+        raise BankError("Insufficient balance to pay this EMI.")
+
+    account.balance -= row["emi"]
+    account.save(update_fields=["balance"])
+    loan.installments_paid += 1
+    Transaction.objects.create(
+        txn_type=Transaction.Type.LOAN_EMI, from_account=account, amount=row["emi"],
+        remark=f"Loan {loan.reference} EMI {loan.installments_paid} of {loan.tenure_months}", performed_by=user,
+    )
+    if loan.installments_paid >= loan.tenure_months:
+        loan.status, loan.next_due_date, loan.closed_at = Loan.Status.CLOSED, None, timezone.now()
+        notify(user, Notification.Kind.LOAN, "Loan fully repaid", f"Loan {loan.reference} is closed. Thank you!")
+    else:
+        loan.next_due_date = add_months(loan.start_date, loan.installments_paid + 1)
+        notify(user, Notification.Kind.LOAN, f"EMI of Rs. {row['emi']:,.2f} paid",
+               f"{loan.tenure_months - loan.installments_paid} instalments left on {loan.reference}.")
+    loan.save()
+    return loan
 
 
 # ------------------------------------------------------------------ security

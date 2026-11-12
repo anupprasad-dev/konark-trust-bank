@@ -17,7 +17,7 @@ from . import authentication
 
 from . import services
 from .statement import StatementTooLarge, build_statement_pdf
-from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, Notification, RegistrationRequest, Role, Transaction, User
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, Loan, LoginActivity, Notification, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
 from .serializers import (
     AccountSerializer, AdminTransactionSerializer, ApplyCardSerializer, ApproveCardSerializer,
@@ -29,7 +29,7 @@ from .serializers import (
     EmployeeCreateSerializer, EmployeeTransactionSerializer, LoginSerializer,
     RegisterSerializer, RegistrationRequestSerializer, RejectSerializer,
     ResetCustomerPasswordSerializer, TransactionSerializer, TransferSerializer,
-    UserSerializer,
+    UserSerializer, ApplyLoanSerializer, EmployeeLoanSerializer, LoanQuoteSerializer, LoanSerializer,
 )
 
 
@@ -875,6 +875,7 @@ class NotificationReadView(APIView):
 
 ANALYTICS_MONTHS = 6
 SPEND_LABELS = {
+    "loan_emi": "Loan EMIs",
     "transfer": "Transfers",
     "bill_payment": "Bills and recharges",
     "term_deposit": "Fixed / recurring deposits",
@@ -959,8 +960,103 @@ class EmployeeSummaryView(APIView):
                     status=RegistrationRequest.Status.APPROVED, reviewed_by=request.user, reviewed_at__gte=start
                 ).count(),
                 "pending_cards": Card.objects.filter(status=Card.Status.PENDING).count(),
+                "pending_loans": Loan.objects.filter(status=Loan.Status.PENDING).count(),
                 "customers": User.objects.filter(role=Role.CUSTOMER).count(),
                 "deposits_today": mine_today["count"] or 0,
                 "deposits_today_total": mine_today["total"] or 0,
             }
         )
+
+
+# ------------------------------------------------------------------ loans
+class LoanQuoteView(APIView):
+    """EMI calculator: GET ?purpose=...&amount=...&months=..."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        serializer = LoanQuoteSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            return Response(_money(services.quote_loan(d["purpose"], d["amount"], d["months"])))
+        except services.BankError as exc:
+            return _bad(str(exc))
+
+
+class MyLoansView(APIView):
+    """GET own loans. POST applies for a new one (an employee decides)."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request):
+        return Response(LoanSerializer(Loan.objects.filter(user=request.user), many=True).data)
+
+    def post(self, request):
+        serializer = ApplyLoanSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        try:
+            loan = services.apply_for_loan(user=request.user, purpose=d["purpose"], amount=d["amount"], months=d["months"])
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(LoanSerializer(loan).data, status=status.HTTP_201_CREATED)
+
+
+class PayEmiView(APIView):
+    permission_classes = [IsCustomer]
+
+    def post(self, request, pk):
+        PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
+        try:
+            loan = services.pay_emi(user=request.user, loan_id=pk)
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response(LoanSerializer(loan).data)
+
+
+class EmployeeLoanListView(generics.ListAPIView):
+    """Query params: status=pending|active|closed|rejected, q=search."""
+
+    permission_classes = [IsEmployee]
+    serializer_class = EmployeeLoanSerializer
+
+    def get_queryset(self):
+        qs = Loan.objects.select_related("user", "user__account", "reviewed_by")
+        params = self.request.query_params
+        state = params.get("status", "")
+        if state in Loan.Status.values:
+            qs = qs.filter(status=state)
+        q = params.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(user__full_name__icontains=q) | Q(user__username__icontains=q)
+                | Q(reference__icontains=q) | Q(user__account__account_number__icontains=q)
+            )
+        return qs
+
+
+class ApproveLoanView(APIView):
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        try:
+            loan = services.approve_loan(employee=request.user, loan_id=pk)
+        except services.BankError as exc:
+            return _bad(str(exc))
+        services.audit(request, "loan_approved", f"@{loan.user.username}", f"{loan.reference}: Rs. {loan.amount} for {loan.tenure_months} months")
+        return Response(EmployeeLoanSerializer(loan).data)
+
+
+class RejectLoanView(APIView):
+    permission_classes = [IsEmployee]
+
+    def post(self, request, pk):
+        serializer = RejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = services.reject_loan(employee=request.user, loan_id=pk, reason=serializer.validated_data["reason"])
+        except services.BankError as exc:
+            return _bad(str(exc))
+        services.audit(request, "loan_rejected", f"@{loan.user.username}", f"{loan.reference}: {loan.rejection_reason}")
+        return Response(EmployeeLoanSerializer(loan).data)

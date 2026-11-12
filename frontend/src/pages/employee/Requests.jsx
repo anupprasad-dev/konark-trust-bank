@@ -23,12 +23,13 @@ function Summary({ onPending }) {
   const tiles = [
     { icon: "inbox", label: "Waiting for review", value: data?.pending_requests, tone: "bg-amber-50 text-amber-600", onClick: onPending, hot: data?.pending_requests > 0 },
     { icon: "card", label: "Card requests", value: data?.pending_cards, tone: "bg-brand-50 text-brand-700", to: "/employee/cards", hot: data?.pending_cards > 0 },
+    { icon: "loan", label: "Loan requests", value: data?.pending_loans, tone: "bg-rose-50 text-rose-600", to: "/employee/loans", hot: data?.pending_loans > 0 },
     { icon: "check", label: "Approved by you today", value: data?.approved_today, tone: "bg-emerald-50 text-emerald-600" },
     { icon: "wallet", label: "Cash deposits today", value: data ? data.deposits_today : undefined, hint: data && data.deposits_today ? formatINR(data.deposits_today_total) : "", tone: "bg-sky-50 text-sky-600", to: "/employee/accounts" },
     { icon: "users", label: "Customers", value: data?.customers, tone: "bg-violet-50 text-violet-600", to: "/employee/accounts" },
   ];
   return (
-    <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       {tiles.map((t) => {
         const body = (
           <>

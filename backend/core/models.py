@@ -123,6 +123,8 @@ class Transaction(models.Model):
         TERM_DEPOSIT = "term_deposit", "Deposit locked"  # money moved into an FD / RD
         TERM_PAYOUT = "term_payout", "Deposit payout"  # money (and interest) paid back
         BILL_PAYMENT = "bill_payment", "Bill payment"  # demo bill payments
+        LOAN_PAYOUT = "loan_payout", "Loan amount"  # a loan paid into the account
+        LOAN_EMI = "loan_emi", "Loan EMI"  # one monthly instalment
 
     class Status(models.TextChoices):
         COMPLETED = "completed", "Completed"
@@ -190,6 +192,8 @@ class Transaction(models.Model):
             return "Konark Trust Bank (cash deposit)", ""
         if self.txn_type == self.Type.TERM_PAYOUT:
             return "Konark Trust Bank (deposit payout)", ""
+        if self.txn_type == self.Type.LOAN_PAYOUT:
+            return "Konark Trust Bank (loan)", ""
         return "Closed account", self.from_account_number
 
     def to_party(self):
@@ -204,6 +208,8 @@ class Transaction(models.Model):
             return "Konark Trust Bank (term deposit)", ""
         if self.txn_type == self.Type.BILL_PAYMENT:
             return "Bill payment (demo)", ""
+        if self.txn_type == self.Type.LOAN_EMI:
+            return "Konark Trust Bank (loan EMI)", ""
         return "Closed account", self.to_account_number
 
 
@@ -376,6 +382,7 @@ class Notification(models.Model):
         CARD = "card", "Card"
         ACCOUNT = "account", "Account"
         DEPOSIT = "deposit", "Deposit"
+        LOAN = "loan", "Loan"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.ACCOUNT)
@@ -390,3 +397,48 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.user_id}: {self.title}"
+
+
+class Loan(models.Model):
+    """A loan the customer asks for. An employee approves it; the money is paid into the account and
+    is paid back in equal monthly instalments (EMI)."""
+
+    class Purpose(models.TextChoices):
+        PERSONAL = "personal", "Personal loan"
+        EDUCATION = "education", "Education loan"
+        HOME = "home", "Home loan"
+        VEHICLE = "vehicle", "Vehicle loan"
+        BUSINESS = "business", "Business loan"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACTIVE = "active", "Active"
+        CLOSED = "closed", "Closed"
+        REJECTED = "rejected", "Rejected"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="loans")
+    reference = models.CharField(max_length=12, unique=True, editable=False)
+    purpose = models.CharField(max_length=10, choices=Purpose.choices)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2)  # the money borrowed
+    tenure_months = models.PositiveSmallIntegerField()
+    interest_rate = models.DecimalField(max_digits=5, decimal_places=2)  # per year, fixed when applied
+    emi = models.DecimalField(max_digits=12, decimal_places=2)
+    total_payable = models.DecimalField(max_digits=14, decimal_places=2)
+
+    installments_paid = models.PositiveSmallIntegerField(default=0)
+    start_date = models.DateField(null=True, blank=True)  # the day the money was paid out
+    next_due_date = models.DateField(null=True, blank=True)
+
+    rejection_reason = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference} {self.get_purpose_display()} ({self.status})"

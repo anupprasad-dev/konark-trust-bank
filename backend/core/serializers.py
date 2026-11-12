@@ -12,8 +12,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from . import authentication
 
-from . import photos
-from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, LoginActivity, RegistrationRequest, Role, Transaction, User
+from . import photos, services
+from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, Loan, LoginActivity, RegistrationRequest, Role, Transaction, User
 
 USERNAME_RE = re.compile(r"^[a-z0-9_]{4,30}$")
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile number
@@ -698,3 +698,87 @@ class BillPaymentSerializer(serializers.ModelSerializer):
     def get_category_label(self, obj):
         from .services import BILLERS
         return BILLERS.get(obj.category, {}).get("label", obj.category)
+
+
+# ------------------------------------------------------------------ loans
+class LoanQuoteSerializer(serializers.Serializer):
+    purpose = serializers.ChoiceField(choices=Loan.Purpose.choices)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    months = serializers.IntegerField()
+
+
+class ApplyLoanSerializer(LoanQuoteSerializer):
+    password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
+
+
+class LoanSerializer(serializers.ModelSerializer):
+    purpose_label = serializers.CharField(source="get_purpose_display", read_only=True)
+    progress = serializers.SerializerMethodField()
+    outstanding = serializers.SerializerMethodField()
+    overdue = serializers.SerializerMethodField()
+    schedule = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Loan
+        fields = [
+            "id", "reference", "purpose", "purpose_label", "status", "amount", "tenure_months", "interest_rate",
+            "emi", "total_payable", "installments_paid", "start_date", "next_due_date", "rejection_reason",
+            "reviewed_at", "closed_at", "created_at", "progress", "outstanding", "overdue", "schedule",
+        ]
+
+    def _rows(self, obj):
+        if obj.status not in (Loan.Status.ACTIVE, Loan.Status.CLOSED) or not obj.start_date:
+            return []
+        return services.loan_schedule(obj.amount, obj.interest_rate, obj.tenure_months, obj.start_date)
+
+    def get_progress(self, obj):
+        return round(obj.installments_paid * 100 / obj.tenure_months) if obj.tenure_months else 0
+
+    def get_outstanding(self, obj):
+        """Principal still to be repaid."""
+        if obj.status != Loan.Status.ACTIVE:
+            return Decimal("0.00") if obj.status == Loan.Status.CLOSED else obj.amount
+        rows = self._rows(obj)
+        return rows[obj.installments_paid - 1]["balance"] if obj.installments_paid else obj.amount
+
+    def get_overdue(self, obj):
+        return bool(obj.status == Loan.Status.ACTIVE and obj.next_due_date and obj.next_due_date < date.today())
+
+    def get_schedule(self, obj):
+        paid = obj.installments_paid
+        return [
+            {**row, "paid": row["no"] <= paid}
+            for row in self._rows(obj)
+        ]
+
+
+class EmployeeLoanSerializer(LoanSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
+    phone = serializers.CharField(source="user.phone", read_only=True)
+    photo = serializers.SerializerMethodField()
+    account_number = serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    class Meta(LoanSerializer.Meta):
+        fields = [f for f in LoanSerializer.Meta.fields if f != "schedule"] + [
+            "username", "full_name", "phone", "photo", "account_number", "balance", "reviewed_by_name",
+        ]
+
+    def get_photo(self, obj):
+        return photos.display_url(obj.user.photo_url)
+
+    def get_account_number(self, obj):
+        return obj.user.account.account_number if hasattr(obj.user, "account") else None
+
+    def get_balance(self, obj):
+        return obj.user.account.balance if hasattr(obj.user, "account") else None
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.display_name if obj.reviewed_by else None

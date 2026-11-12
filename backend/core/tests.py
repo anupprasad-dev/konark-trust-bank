@@ -1717,3 +1717,106 @@ class EmployeeSummaryTests(BankTestBase):
         make_user("asha", Role.CUSTOMER, with_account=True)
         self.login("asha")
         self.assertEqual(self.client.get("/api/employee/summary/").status_code, 403)
+
+
+class LoanTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+        self.employee = make_user("emp1", Role.EMPLOYEE)
+
+    def apply(self, amount="12000", months=12, purpose="personal"):
+        return self.client.post(
+            "/api/customer/loans/",
+            {"purpose": purpose, "amount": amount, "months": months, "password": PASSWORD},
+            format="json",
+        )
+
+    def approved_loan(self, **kw):
+        self.login("asha")
+        loan_id = self.apply(**kw).data["id"]
+        self.logout()
+        self.login("emp1")
+        self.client.post(f"/api/employee/loans/{loan_id}/approve/")
+        self.logout()
+        self.login("asha")
+        return loan_id
+
+    def test_emi_formula(self):
+        # 100000 at 12 % for 12 months is the textbook EMI of 8884.88
+        self.assertEqual(services.compute_emi(Decimal("100000"), Decimal("12"), 12), Decimal("8884.88"))
+
+    def test_schedule_ends_at_zero_and_adds_up(self):
+        rows = services.loan_schedule(Decimal("50000"), Decimal("9.25"), 18)
+        self.assertEqual(len(rows), 18)
+        self.assertEqual(rows[-1]["balance"], Decimal("0.00"))
+        self.assertEqual(sum(r["principal"] for r in rows), Decimal("50000.00"))
+
+    def test_quote(self):
+        self.login("asha")
+        r = self.client.get("/api/customer/loans/quote/", {"purpose": "home", "amount": "100000", "months": 12})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["interest_rate"], "8.50")
+        self.assertEqual(self.client.get("/api/customer/loans/quote/", {"purpose": "home", "amount": "10", "months": 12}).status_code, 400)
+
+    def test_apply_needs_password_and_valid_numbers(self):
+        self.login("asha")
+        bad = self.client.post("/api/customer/loans/", {"purpose": "home", "amount": "50000", "months": 12, "password": "nope"}, format="json")
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.apply(amount="100").status_code, 400)
+        self.assertEqual(self.apply(months=200).status_code, 400)
+        self.assertEqual(self.apply().status_code, 201)
+
+    def test_only_one_open_loan(self):
+        self.login("asha")
+        self.assertEqual(self.apply().status_code, 201)
+        self.assertEqual(self.apply().status_code, 400)
+
+    def test_approval_pays_out_and_notifies(self):
+        self.approved_loan(amount="12000")
+        self.asha.account.refresh_from_db()
+        self.assertEqual(self.asha.account.balance, Decimal("13000"))
+        loan = self.client.get("/api/customer/loans/").data[0]
+        self.assertEqual(loan["status"], "active")
+        self.assertEqual(len(loan["schedule"]), 12)
+        self.assertIn("Loan approved", [n["title"] for n in self.client.get("/api/notifications/").data["results"]])
+
+    def test_pay_all_emis_closes_loan(self):
+        loan_id = self.approved_loan(amount="6000", months=3)
+        for _ in range(3):
+            r = self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json")
+            self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["status"], "closed")
+        self.assertEqual(str(r.data["outstanding"]), "0.00")
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json").status_code, 400)
+        self.assertEqual(self.apply().status_code, 201)  # a new loan is possible again
+
+    def test_emi_needs_balance_and_password(self):
+        loan_id = self.approved_loan(amount="5000", months=3)
+        Account.objects.filter(user=self.asha).update(balance=Decimal("1"))
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json").status_code, 400)
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": "wrong"}, format="json").status_code, 400)
+
+    def test_reject_needs_reason(self):
+        self.login("asha")
+        loan_id = self.apply().data["id"]
+        self.logout()
+        self.login("emp1")
+        self.assertEqual(self.client.post(f"/api/employee/loans/{loan_id}/reject/", {"reason": ""}, format="json").status_code, 400)
+        r = self.client.post(f"/api/employee/loans/{loan_id}/reject/", {"reason": "Income proof missing"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.client.post(f"/api/employee/loans/{loan_id}/approve/").status_code, 400)  # already handled
+
+    def test_roles(self):
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/employee/loans/").status_code, 403)
+        self.logout()
+        self.login("emp1")
+        self.assertEqual(self.client.get("/api/customer/loans/").status_code, 403)
+
+    def test_other_customer_cannot_pay_my_loan(self):
+        loan_id = self.approved_loan(amount="5000", months=3)
+        make_user("ravi", Role.CUSTOMER, with_account=True, balance="9000")
+        self.logout()
+        self.login("ravi")
+        self.assertEqual(self.client.post(f"/api/customer/loans/{loan_id}/pay/", {"password": PASSWORD}, format="json").status_code, 400)

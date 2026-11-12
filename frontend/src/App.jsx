@@ -16,6 +16,8 @@ const Bills = lazy(() => import("./pages/customer/Bills.jsx"));
 const Deposits = lazy(() => import("./pages/customer/Deposits.jsx"));
 const Cards = lazy(() => import("./pages/customer/Cards.jsx"));
 const CardRequests = lazy(() => import("./pages/employee/CardRequests.jsx"));
+const LoanRequests = lazy(() => import("./pages/employee/LoanRequests.jsx"));
+const Loans = lazy(() => import("./pages/customer/Loans.jsx"));
 const AccountHistory = lazy(() => import("./pages/employee/AccountHistory.jsx"));
 const Accounts = lazy(() => import("./pages/employee/Accounts.jsx"));
 const Requests = lazy(() => import("./pages/employee/Requests.jsx"));
@@ -49,6 +51,7 @@ const customerLinks = [
   { to: "/customer/statement", label: "Account Statement", short: "Statement", icon: "statement" },
   { to: "/customer/bills", label: "Pay Bills", short: "Bills", icon: "calendar" },
   { to: "/customer/deposits", label: "Deposits", short: "Deposits", icon: "chart" },
+  { to: "/customer/loans", label: "Loans", short: "Loans", icon: "loan" },
   { to: "/customer/cards", label: "Cards", short: "Cards", icon: "card", mobile: true },
 ];
 
@@ -56,6 +59,7 @@ const employeeLinks = [
   { to: "/employee", label: "Registration Requests", short: "Requests", end: true, icon: "inbox" },
   { to: "/employee/accounts", label: "Customer Accounts", short: "Accounts", icon: "wallet" },
   { to: "/employee/cards", label: "Card Requests", short: "Cards", icon: "card" },
+  { to: "/employee/loans", label: "Loan Requests", short: "Loans", icon: "loan" },
 ];
 
 const adminLinks = [
@@ -90,6 +94,7 @@ export default function App() {
         <Route path="bills" element={<Bills />} />
         <Route path="deposits" element={<Deposits />} />
         <Route path="cards" element={<Cards />} />
+        <Route path="loans" element={<Loans />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 
@@ -104,6 +109,7 @@ export default function App() {
         <Route index element={<Requests />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="cards" element={<CardRequests />} />
+        <Route path="loans" element={<LoanRequests />} />
         <Route path="accounts/:id" element={<AccountHistory />} />
         <Route path="profile" element={<Profile />} />
       </Route>
