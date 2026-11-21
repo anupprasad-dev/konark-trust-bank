@@ -10,11 +10,17 @@ import { useApi } from "../../hooks";
 const groupDigits = (value = "") => String(value).replace(/(.{4})/g, "$1 ").trim();
 
 const ACTIONS = [
-  { to: "/customer/transfer", label: "Transfer money", icon: "send", primary: true },
-  { to: "/customer/beneficiaries", label: "Beneficiaries", icon: "users" },
-  { to: "/customer/history", label: "History", icon: "history" },
-  { to: "/customer/statement", label: "Statement", icon: "statement" },
-  { to: "/customer/cards", label: "Cards", icon: "card" },
+  { to: "/customer/transfer", label: "Send money", sub: "To any Konark account", icon: "send", primary: true },
+  { to: "/customer/beneficiaries", label: "Beneficiaries", sub: "Saved payees", icon: "users" },
+  { to: "/customer/bills", label: "Pay bills", sub: "Bills and recharge", icon: "calendar" },
+  { to: "/customer/statement", label: "Statement", sub: "Download or print", icon: "statement" },
+];
+
+const EXPLORE = [
+  { title: "Deposits", icon: "chart", to: "/customer/deposits", items: ["Fixed Deposit", "Recurring Deposit"] },
+  { title: "Loans", icon: "loan", to: "/customer/loans", items: ["Personal Loan", "Home Loan", "Vehicle Loan", "Education Loan"] },
+  { title: "Cards", icon: "card", to: "/customer/cards", items: ["Debit card", "Credit card", "Block or unblock"] },
+  { title: "Services", icon: "statement", to: "/customer/statement", items: ["Account statement", "Transaction history", "My profile"] },
 ];
 
 /** "Today", "Yesterday" or "12 Oct 2026" for the group headings in the list. */
@@ -34,12 +40,18 @@ export default function CustomerDashboard() {
   const recent = useApi("/customer/transactions/", { page_size: 6 });
   const people = useApi("/customer/beneficiaries/");
   const stats = useApi("/customer/analytics/");
+  const deposits = useApi("/customer/deposits/");
+  const loans = useApi("/customer/loans/");
+  const cards = useApi("/customer/cards/");
   const [showBalance, setShowBalance] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (account.loading) return <Spinner />;
   if (account.error) return <Alert>{account.error}</Alert>;
   const acc = account.data;
+  const activeDeposits = (deposits.data || []).filter((d) => d.status === "active");
+  const openLoan = (loans.data || []).find((l) => l.status === "active" || l.status === "pending");
+  const issuedCards = (cards.data || []).filter((c) => c.status === "approved");
 
   const copy = async () => {
     try {
@@ -98,13 +110,13 @@ export default function CustomerDashboard() {
         </section>
 
         <section className="card lg:col-span-3">
-          <h2 className="text-sm font-bold text-slate-900">Quick actions</h2>
-          <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+          <h2 className="text-sm font-bold text-slate-900">Payments and transfers</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {ACTIONS.map((a) => (
               <Link
                 key={a.to}
                 to={a.to}
-                className={`flex flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center text-xs font-bold transition sm:text-[13px] ${
+                className={`flex flex-col gap-2 rounded-2xl px-3 py-3 transition ${
                   a.primary
                     ? "bg-brand-700 text-white hover:bg-brand-800"
                     : "bg-slate-50 text-slate-700 hover:bg-brand-50 hover:text-brand-700"
@@ -113,32 +125,98 @@ export default function CustomerDashboard() {
                 <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${a.primary ? "bg-white/15" : "bg-white text-brand-600 shadow-sm"}`}>
                   <Icon name={a.icon} className="h-5 w-5" />
                 </span>
-                {a.label}
+                <span className="text-sm font-bold leading-tight">{a.label}</span>
+                <span className={`text-xs leading-tight ${a.primary ? "text-brand-100" : "text-slate-500"}`}>{a.sub}</span>
               </Link>
             ))}
           </div>
+          {recent.data?.count === 0 && (
+            <Link to="/customer/transfer" className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900 hover:bg-brand-100">
+              <span>You have not made a transfer yet. Start with a quick one.</span>
+              <span className="flex-none font-bold">Try now &rarr;</span>
+            </Link>
+          )}
         </section>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <h2 className="mb-3 mt-6 text-base font-extrabold text-slate-900">Relationship overview</h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { icon: "send", label: "Money in this month", value: stats.data ? formatINR(stats.data.this_month.credit) : "-", to: "/customer/history", tone: "bg-emerald-50 text-emerald-600" },
-          { icon: "wallet", label: "Money out this month", value: stats.data ? formatINR(stats.data.this_month.debit) : "-", to: "/customer/history", tone: "bg-rose-50 text-rose-600" },
-          { icon: "users", label: "Saved beneficiaries", value: people.data ? people.data.length : "-", to: "/customer/beneficiaries", tone: "bg-amber-50 text-amber-600" },
-          { icon: "ledger", label: "Total transactions", value: recent.data ? recent.data.count : "-", to: "/customer/history", tone: "bg-amber-50 text-amber-600" },
-        ].map((t) => (
-          <Link key={t.label} to={t.to} className="card flex items-center gap-3 p-3.5 transition hover:border-brand-200 hover:bg-brand-50/40 sm:p-4">
-            <span className={`hidden h-10 w-10 flex-none items-center justify-center rounded-xl sm:flex ${t.tone}`}>
-              <Icon name={t.icon} className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-xs text-slate-500">{t.label}</p>
-              <p className="num truncate text-base font-extrabold text-slate-900 sm:text-lg">{t.value}</p>
-            </div>
-          </Link>
-        ))}
+          {
+            tag: "Deposits",
+            icon: "chart",
+            title: activeDeposits.length ? `${activeDeposits.length} active deposit${activeDeposits.length > 1 ? "s" : ""}` : "Grow your money faster",
+            text: activeDeposits.length ? "Track every deposit and its maturity date." : "Fixed and recurring deposits at better rates.",
+            cta: activeDeposits.length ? "View deposits" : "Explore",
+            to: "/customer/deposits",
+          },
+          {
+            tag: "Loans",
+            icon: "loan",
+            title: openLoan ? (openLoan.status === "pending" ? "Application under review" : `${formatINR(openLoan.outstanding)} to repay`) : "Find the right loan",
+            text: openLoan ? (openLoan.status === "pending" ? `${openLoan.purpose_label} for ${formatINR(openLoan.amount)}.` : `${openLoan.purpose_label}. Monthly EMI ${formatINR(openLoan.emi)}.`) : "See your EMI before you apply.",
+            cta: openLoan ? "Manage loan" : "Apply now",
+            to: "/customer/loans",
+          },
+          {
+            tag: "Cards",
+            icon: "card",
+            title: issuedCards.length ? `${issuedCards.length} card${issuedCards.length > 1 ? "s" : ""} issued` : "Need a card?",
+            text: issuedCards.length ? "Block or unblock a card at any time." : "Ask for a debit or credit card online.",
+            cta: issuedCards.length ? "View cards" : "Request a card",
+            to: "/customer/cards",
+          },
+          {
+            tag: "Personal finance",
+            icon: "wallet",
+            title: stats.data ? `${formatINR(stats.data.this_month.debit)} spent this month` : "Your spending",
+            text: "See where your money goes, month by month.",
+            cta: "See spending",
+            to: "#spending",
+          },
+        ].map((c) => {
+          const body = (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">{c.tag}</p>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                  <Icon name={c.icon} className="h-5 w-5" />
+                </span>
+              </div>
+              <p className="mt-3 text-base font-extrabold leading-snug text-slate-900">{c.title}</p>
+              <p className="mt-1 text-sm text-slate-500">{c.text}</p>
+              <p className="mt-3 text-sm font-bold text-brand-700">{c.cta} &rarr;</p>
+            </>
+          );
+          const cls = "card block p-4 transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md";
+          return c.to.startsWith("#") ? (
+            <a key={c.tag} href={c.to} className={cls}>{body}</a>
+          ) : (
+            <Link key={c.tag} to={c.to} className={cls}>{body}</Link>
+          );
+        })}
       </div>
 
+      {(!openLoan || issuedCards.length === 0) && (
+        <div className="mt-4 space-y-2">
+          {!openLoan && (
+            <Link to="/customer/loans" className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200 hover:ring-brand-300">
+              <Icon name="bell" className="h-5 w-5 flex-none text-amber-500" />
+              <span className="flex-1">Planning a big purchase? Check your EMI and apply for a loan.</span>
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          )}
+          {issuedCards.length === 0 && (
+            <Link to="/customer/cards" className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200 hover:ring-brand-300">
+              <Icon name="bell" className="h-5 w-5 flex-none text-amber-500" />
+              <span className="flex-1">You are just a few taps away from your card. Request one now.</span>
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
+          )}
+        </div>
+      )}
+
+      <div id="spending" className="scroll-mt-20" />
       {stats.data && <SpendingChart data={stats.data} />}
 
       {people.data?.length > 0 && (
@@ -205,6 +283,30 @@ export default function CustomerDashboard() {
           <Empty>No transactions yet. Your first transfer or deposit will show up here.</Empty>
         )}
       </section>
+
+      <h2 className="mb-3 mt-6 text-base font-extrabold text-slate-900">Explore more</h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {EXPLORE.map((g) => (
+          <section key={g.title} className="card p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-slate-900">{g.title}</h3>
+              <Link to={g.to} className="text-xs font-bold text-brand-700 hover:underline">View all</Link>
+            </div>
+            <ul className="mt-3 space-y-1">
+              {g.items.map((item) => (
+                <li key={item}>
+                  <Link to={g.to} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700">
+                    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-slate-100 text-brand-600">
+                      <Icon name={g.icon} className="h-4 w-4" />
+                    </span>
+                    {item}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
     </>
   );
 }
