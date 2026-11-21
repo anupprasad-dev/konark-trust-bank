@@ -9,13 +9,6 @@ import { Alert, Input, PasswordInput } from "../components/ui.jsx";
 const takeNotice = () => sessionNotice.take();
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
-const FEATURES = [
-  "Instant fund transfers to any Konark account",
-  "Save beneficiaries for one-tap payments",
-  "Search and filter your full transaction history",
-  "Secure login with role-based access",
-];
-
 const STAFF_ROLES = [
   {
     title: "Employee",
@@ -27,7 +20,7 @@ const STAFF_ROLES = [
   },
 ];
 
-function LoginForm({ onNotice, notice, staff }) {
+function LoginForm({ notice, staff }) {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
@@ -91,12 +84,12 @@ function LoginForm({ onNotice, notice, staff }) {
           Staff activity is recorded. Log out when you leave your desk.
         </p>
       ) : (
-        <p className="border-t border-slate-100 pt-4 text-center text-sm text-slate-500">
-          New to Konark Trust Bank?{" "}
-          <button type="button" className="font-bold text-brand-600 hover:underline" onClick={() => onNotice("register")}>
-            Register now
-          </button>
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm">
+          <a href="/#faq" className="font-semibold text-brand-700 hover:underline">Forgot password?</a>
+          <a href="/#faq" className="flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">
+            <Icon name="lock" className="h-4 w-4" /> Lock / Unlock user
+          </a>
+        </div>
       )}
     </form>
   );
@@ -340,6 +333,146 @@ function StaffPanel() {
   );
 }
 
+const QUICK_ACTIONS = [
+  { icon: "alert", label: "Report unauthorised transaction", href: "/#help" },
+  { icon: "lock", label: "Password management", href: "/#faq" },
+  { icon: "shield", label: "Security tips", href: "/#security" },
+  { icon: "mail", label: "Report phishing", href: "/#help" },
+  { icon: "info", label: "Cyber fraud", href: "/#security" },
+  { icon: "search", label: "FAQ", href: "/#faq" },
+];
+
+const NOTICES = [
+  "Only one login is allowed per user at a time. If you closed a tab without logging out, you can log in again after 10 minutes.",
+  "Five wrong passwords lock your account for 15 minutes. It opens again by itself.",
+  "For your safety you are logged out after 10 minutes without any activity.",
+  "Loans with EMI, fixed and recurring deposits and cards are available after you log in.",
+];
+
+const PRACTICES = [
+  { title: "Be vigilant. Be safe.", text: "The bank makes every effort to keep your money safe, but you are the first line of defence. Check every message before you act." },
+  { title: "Confidentiality", text: "Konark Trust Bank never asks for your password, PIN or OTP on a call, message or email." },
+  { title: "Beware of phishing", text: "Phishing is a fake message or website that tries to steal your login. Type the bank address yourself." },
+];
+
+const DOS = [
+  ["Always", "keep your phone and computer free of malware"],
+  ["Always", "change your password from time to time"],
+  ["Never", "reply to anyone who asks for your password"],
+  ["Never", "tell your password or card details to anyone"],
+];
+
+function CustomerAuth({ mode, setMode, notice, setNotice }) {
+  return (
+    <div className="fade-in min-h-dvh bg-slate-50">
+      <header className="bg-gradient-to-r from-brand-900 to-brand-700 text-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+          <BrandLogo light to="/" size="lg" />
+          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20 sm:text-sm">
+            &larr; Home
+          </Link>
+        </div>
+      </header>
+
+      {mode === "register" ? (
+        <main className="mx-auto max-w-2xl px-4 py-8">
+          <div className="card auth-card p-5 shadow-lg sm:p-8">
+            <div key="register" className="form-swap">
+              <RegisterForm
+                onBack={() => setMode("login")}
+                onDone={(message) => {
+                  setNotice(message);
+                  setMode("login");
+                }}
+              />
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+          <p className="text-lg text-slate-500">Hello!</p>
+          <h1 className="text-2xl font-extrabold text-slate-900 sm:text-4xl">Welcome to Konark Trust Bank</h1>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-5">
+            <div className="space-y-4 lg:col-span-2">
+              <div className="card auth-card p-5 shadow-lg sm:p-7">
+                <div key="login" className="form-swap">
+                  <LoginForm notice={notice} />
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <h2 className="text-base font-extrabold text-slate-900">Are you a new user?</h2>
+                <p className="mt-1 text-sm text-slate-500">Open your account online. A bank employee approves it, then you can log in.</p>
+                <button className="btn-outline mt-4 w-full" onClick={() => { setNotice(""); setMode("register"); }}>
+                  Register now
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-6 lg:col-span-3">
+              <section>
+                <h2 className="text-base font-extrabold text-slate-900">Quick actions</h2>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {QUICK_ACTIONS.map((q) => (
+                    <a key={q.label} href={q.href} className="group flex flex-col items-start gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-brand-200">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition group-hover:bg-brand-700 group-hover:text-white">
+                        <Icon name={q.icon} className="h-5 w-5" />
+                      </span>
+                      <span className="text-sm font-semibold leading-snug text-slate-800">{q.label}</span>
+                    </a>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card">
+                <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                  <Icon name="bell" className="h-5 w-5 text-amber-500" /> Important notices
+                </h2>
+                <ul className="mt-3 space-y-3">
+                  {NOTICES.map((n) => (
+                    <li key={n} className="flex gap-3 text-sm text-slate-700">
+                      <span className="mt-1.5 h-2 w-2 flex-none rounded-full bg-brand-500" aria-hidden="true" />
+                      {n}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-base font-extrabold text-slate-900">Security best practices</h2>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {PRACTICES.map((p) => (
+                    <div key={p.title} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                      <h3 className="text-sm font-bold text-brand-800">{p.title}</h3>
+                      <p className="mt-1.5 text-sm text-slate-600">{p.text}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                  <h3 className="text-sm font-bold text-slate-900">Do&apos;s and don&apos;ts</h3>
+                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {DOS.map(([word, text]) => (
+                      <li key={text} className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className={`mt-0.5 flex-none rounded px-1.5 text-xs font-extrabold uppercase ${word === "Always" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{word}</span>
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            </div>
+          </div>
+        </main>
+      )}
+
+      <footer className="border-t border-slate-200 py-5 text-center text-xs text-slate-500">
+        &copy; {new Date().getFullYear()} Konark Trust Bank
+      </footer>
+    </div>
+  );
+}
+
 export default function AuthPage() {
   const { user, checking } = useAuth();
   const [params] = useSearchParams();
@@ -349,16 +482,12 @@ export default function AuthPage() {
 
   if (!checking && user) return <Navigate to={homePath(user.role)} replace />;
 
+  if (!staff) return <CustomerAuth mode={mode} setMode={setMode} notice={notice} setNotice={setNotice} />;
+
   return (
     <div className="fade-in min-h-dvh bg-slate-50 lg:flex lg:bg-white">
-      {/* Mobile: compact header. Desktop: full welcome panel on the left. */}
-      <section
-        className={`px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16 ${
-          staff
-            ? "bg-gradient-to-br from-slate-900 via-brand-900 to-brand-700"
-            : "bg-gradient-to-br from-brand-800 via-brand-700 to-brand-500"
-        }`}
-      >
+      {/* Mobile: compact header. Desktop: full staff panel on the left. */}
+      <section className="bg-gradient-to-br from-slate-900 via-brand-900 to-brand-700 px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16">
         <div className="flex items-center justify-between">
           <BrandLogo light to="/" size="lg" />
           <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 lg:hidden">
@@ -367,59 +496,18 @@ export default function AuthPage() {
         </div>
 
         <div className="mt-6 lg:my-0 lg:mt-0">
-          <h1 className={`text-2xl font-bold leading-tight sm:text-3xl lg:hidden`}>
-            {staff ? "Staff login" : mode === "login" ? "Welcome back" : "Open your account"}
-          </h1>
-          <p className="mt-2 max-w-md text-sm text-brand-100 lg:hidden">
-            {staff ? "Sign in to the staff portal." : "Your money, your trust. Simple and safe digital banking, anytime."}
-          </p>
-
-          {staff ? (
-            <StaffPanel />
-          ) : (
-            <div className="hidden lg:block">
-              <p className="text-lg text-brand-100">Hello!</p>
-              <h1 className="mt-1 text-5xl font-bold leading-tight">Welcome to the world of Konark Trust Bank</h1>
-              <p className="mt-4 max-w-md text-brand-100">Your money, your trust. Simple and safe digital banking, anytime.</p>
-              <ul className="mt-8 space-y-3 text-sm">
-                {FEATURES.map((f) => (
-                  <li key={f} className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-white/20 text-xs">
-                      &#10003;
-                    </span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <h1 className="text-2xl font-bold leading-tight sm:text-3xl lg:hidden">Staff login</h1>
+          <p className="mt-2 max-w-md text-sm text-brand-100 lg:hidden">Sign in to the staff portal.</p>
+          <StaffPanel />
         </div>
 
         <p className="hidden text-xs text-brand-200 lg:block">&copy; {new Date().getFullYear()} Konark Trust Bank</p>
       </section>
 
-      {/* Form card: overlaps the header on mobile */}
       <section className="-mt-10 px-4 pb-8 lg:mt-0 lg:flex lg:w-1/2 lg:items-center lg:justify-center lg:px-6 lg:py-10">
-        <div className={`card auth-card mx-auto w-full p-5 shadow-lg sm:p-8 lg:shadow-sm ${staff || mode === "login" ? "max-w-md" : "max-w-xl"}`}>
-          <div key={staff ? "staff" : mode} className="form-swap">
-          {staff || mode === "login" ? (
-            <LoginForm
-              staff={staff}
-              notice={notice}
-              onNotice={(next) => {
-                setNotice("");
-                setMode(next);
-              }}
-            />
-          ) : (
-            <RegisterForm
-              onBack={() => setMode("login")}
-              onDone={(message) => {
-                setNotice(message);
-                setMode("login");
-              }}
-            />
-          )}
+        <div className="card auth-card mx-auto w-full max-w-md p-5 shadow-lg sm:p-8 lg:shadow-sm">
+          <div key="staff" className="form-swap">
+            <LoginForm staff notice={notice} />
           </div>
         </div>
       </section>

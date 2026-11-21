@@ -15,7 +15,6 @@ const TOP_LINKS = [
   { href: "#faq", label: "FAQ" },
   { href: "#security", label: "Stay safe" },
   { to: "/login?mode=register", label: "Apply for an account", fresh: true },
-  { to: "/login?portal=staff", label: "Staff portal" },
 ];
 
 const PERSONAL_LINKS = [
@@ -72,6 +71,12 @@ function Icon({ name, className = "h-6 w-6" }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round", strokeLinejoin: "round" };
   const paths = {
     transfer: <path d="M4 8h14m0 0-4-4m4 4-4 4M20 16H6m0 0 4-4m-4 4 4 4" />,
+    people: (
+      <>
+        <circle cx="12" cy="8" r="3.2" />
+        <path d="M5 20c0-3.6 3-6 7-6s7 2.4 7 6" />
+      </>
+    ),
     statement: (
       <>
         <path d="M7 3h7l5 5v13H7z" />
@@ -125,12 +130,6 @@ function Icon({ name, className = "h-6 w-6" }) {
     phone: <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />,
     chevron: <path d="m9 5 7 7-7 7" />,
     left: <path d="m15 5-7 7 7 7" />,
-    mail: (
-      <>
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="m3 7 9 6 9-6" />
-      </>
-    ),
   };
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...common}>
@@ -290,7 +289,6 @@ export default function Home() {
               return l.to ? <Link key={l.label} to={l.to} className={cls}>{inner}</Link> : <a key={l.label} href={l.href} className={cls}>{inner}</a>;
             })}
           </nav>
-          <span className="hidden flex-none text-brand-300 md:block">A demo bank. Do not enter real data.</span>
           <Link to="/login?mode=register" className="flex-none font-semibold text-sun-300 hover:text-sun-100 sm:hidden">Apply now</Link>
         </div>
       </div>
@@ -453,10 +451,9 @@ export default function Home() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
             <h2 className="text-xl font-bold text-slate-900">Customer care</h2>
-            <p className="mt-1 text-sm text-slate-600">Konark Trust Bank is a demo project, so these are sample details.</p>
+            <p className="mt-1 text-sm text-slate-600">Visit your branch and ask any bank employee. They can help with a forgotten password, a locked account, cards and loans.</p>
             <ul className="mt-4 space-y-3 text-sm text-slate-800">
-              <li className="flex items-center gap-3"><Icon name="phone" className="h-5 w-5 text-brand-600" /> Helpline: 1800 000 0000 (sample)</li>
-              <li className="flex items-center gap-3"><Icon name="mail" className="h-5 w-5 text-brand-600" /> care@konarktrust.example</li>
+              <li className="flex items-center gap-3"><Icon name="people" className="h-5 w-5 text-brand-600" /> Konark Main Branch</li>
               <li className="flex items-center gap-3"><Icon name="bell" className="h-5 w-5 text-brand-600" /> Open Monday to Saturday, 10 am to 5 pm</li>
             </ul>
           </div>
@@ -466,10 +463,7 @@ export default function Home() {
       <footer className="bg-slate-900 py-8 text-sm text-slate-400">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
           <Logo light />
-          <div className="sm:text-right">
-            <p>&copy; {new Date().getFullYear()} Konark Trust Bank. A fictional bank for learning.</p>
-            <p className="mt-1 text-xs text-slate-500">Best viewed in Chrome, Edge or Firefox. Works on phones too.</p>
-          </div>
+          <p>&copy; {new Date().getFullYear()} Konark Trust Bank. All rights reserved.</p>
         </div>
       </footer>
     </div>
