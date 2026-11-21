@@ -7,6 +7,7 @@ import { notice as sessionNotice } from "../api";
 import { Alert, Input, PasswordInput } from "../components/ui.jsx";
 
 const takeNotice = () => sessionNotice.take();
+import { CONTACT } from "../config/contact.js";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
 const STAFF_ROLES = [
@@ -96,6 +97,15 @@ function LoginForm({ notice, staff }) {
 }
 
 /** Round icon + title + one line, the same on every form of the login page. */
+function SectionTitle({ n, title }) {
+  return (
+    <div className="flex items-center gap-2.5 border-t border-slate-100 pt-4">
+      <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-700 text-xs font-bold text-white">{n}</span>
+      <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-700">{title}</h3>
+    </div>
+  );
+}
+
 function FormHeading({ icon, tone = "brand", title, text }) {
   const tones = { brand: "bg-brand-50 text-brand-600", sun: "bg-amber-50 text-amber-600" };
   return (
@@ -190,6 +200,7 @@ function RegisterForm({ onDone, onBack }) {
       />
       <Alert>{error}</Alert>
 
+      <SectionTitle n="1" title="Your photo" />
       <div className="flex items-center gap-4 rounded-2xl bg-slate-50 p-3.5">
         <button
           type="button"
@@ -222,16 +233,17 @@ function RegisterForm({ onDone, onBack }) {
           {photoError}
         </p>
       )}
+      <SectionTitle n="2" title="Personal details" />
       <Input label="Full name" icon="user" value={form.full_name} onChange={set("full_name")} error={errors.full_name} autoComplete="name" required />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
-          label="Username"
-          icon="at"
-          value={form.username}
-          onChange={set("username")}
-          error={errors.username}
-          hint="4-30 letters, numbers or _"
-          autoCapitalize="none"
+          label="Date of birth"
+          type="date"
+          value={form.date_of_birth}
+          max={new Date().toISOString().slice(0, 10)}
+          onChange={set("date_of_birth")}
+          error={errors.date_of_birth}
+          autoComplete="bday"
           required
         />
         <Input
@@ -247,18 +259,20 @@ function RegisterForm({ onDone, onBack }) {
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input label="Email" icon="mail" type="email" value={form.email} onChange={set("email")} error={errors.email} autoComplete="email" required />
-        <Input
-          label="Date of birth"
-          type="date"
-          value={form.date_of_birth}
-          max={new Date().toISOString().slice(0, 10)}
-          onChange={set("date_of_birth")}
-          error={errors.date_of_birth}
-          autoComplete="bday"
-          required
-        />
       </div>
+      <Input label="Email" icon="mail" type="email" value={form.email} onChange={set("email")} error={errors.email} autoComplete="email" required />
+
+      <SectionTitle n="3" title="Login details" />
+      <Input
+        label="Username"
+        icon="at"
+        value={form.username}
+        onChange={set("username")}
+        error={errors.username}
+        hint="4-30 letters, numbers or _"
+        autoCapitalize="none"
+        required
+      />
       <div className="grid gap-4 sm:grid-cols-2">
         <PasswordInput
           label="Password"
@@ -333,6 +347,19 @@ function StaffPanel() {
   );
 }
 
+const REGISTER_STEPS = [
+  { title: "Fill in the form", text: "Add your photo, name, mobile number, email and a login password." },
+  { title: "Employee review", text: "A bank employee checks your details and approves the request." },
+  { title: "Log in and bank", text: "Once approved, log in to send money, apply for loans and more." },
+];
+
+const REGISTER_NEEDS = [
+  "A clear photo of your face (JPG, PNG or WEBP, under 1 MB)",
+  "Your 10-digit mobile number",
+  "A working email address",
+  "A password of at least 8 characters",
+];
+
 const QUICK_ACTIONS = [
   { icon: "alert", label: "Report unauthorised transaction", href: "/#help" },
   { icon: "lock", label: "Password management", href: "/#faq" },
@@ -375,16 +402,54 @@ function CustomerAuth({ mode, setMode, notice, setNotice }) {
       </header>
 
       {mode === "register" ? (
-        <main className="mx-auto max-w-2xl px-4 py-8">
-          <div className="card auth-card p-5 shadow-lg sm:p-8">
-            <div key="register" className="form-swap">
-              <RegisterForm
-                onBack={() => setMode("login")}
-                onDone={(message) => {
-                  setNotice(message);
-                  setMode("login");
-                }}
-              />
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+          <p className="text-lg text-slate-500">New to Konark Trust Bank?</p>
+          <h1 className="text-2xl font-extrabold text-slate-900 sm:text-4xl">Open your account online</h1>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-5">
+            <aside className="order-2 space-y-4 lg:order-1 lg:col-span-2">
+              <section className="card">
+                <h2 className="text-base font-extrabold text-slate-900">How it works</h2>
+                <ol className="mt-4 space-y-4">
+                  {REGISTER_STEPS.map((step, i) => (
+                    <li key={step.title} className="flex gap-3">
+                      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">{i + 1}</span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">{step.title}</p>
+                        <p className="text-sm text-slate-600">{step.text}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+              <section className="card">
+                <h2 className="text-base font-extrabold text-slate-900">Keep ready</h2>
+                <ul className="mt-3 space-y-2.5">
+                  {REGISTER_NEEDS.map((n) => (
+                    <li key={n} className="flex items-start gap-2.5 text-sm text-slate-700">
+                      <Icon name="check" className="mt-0.5 h-4 w-4 flex-none text-emerald-600" /> {n}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <p className="flex gap-2.5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+                <Icon name="shield" className="mt-0.5 h-5 w-5 flex-none" />
+                Konark Trust Bank never asks for your password, PIN or OTP. Keep them to yourself.
+              </p>
+            </aside>
+
+            <div className="order-1 lg:order-2 lg:col-span-3">
+              <div className="card auth-card p-5 shadow-lg sm:p-8">
+                <div key="register" className="form-swap">
+                  <RegisterForm
+                    onBack={() => setMode("login")}
+                    onDone={(message) => {
+                      setNotice(message);
+                      setMode("login");
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </main>
@@ -466,7 +531,13 @@ function CustomerAuth({ mode, setMode, notice, setNotice }) {
         </main>
       )}
 
-      <footer className="border-t border-slate-200 py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 px-4 py-5 text-center text-xs text-slate-500">
+        {(CONTACT.phone || CONTACT.email) && (
+          <p className="mb-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-slate-700">
+            {CONTACT.phone && <a href={`tel:${CONTACT.phone.replace(/[^+\d]/g, "")}`} className="font-semibold hover:underline">{CONTACT.phone}</a>}
+            {CONTACT.email && <a href={`mailto:${CONTACT.email}`} className="font-semibold hover:underline">{CONTACT.email}</a>}
+          </p>
+        )}
         &copy; {new Date().getFullYear()} Konark Trust Bank
       </footer>
     </div>

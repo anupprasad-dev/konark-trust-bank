@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import BrandLogo from "../components/Brand.jsx";
+import { CONTACT } from "../config/contact.js";
 
 const SAFETY_MESSAGES = [
   "Konark Trust Bank will never ask for your password, PIN or OTP by phone, SMS or email. Any such call is from a fraudster.",
@@ -125,6 +126,12 @@ function Icon({ name, className = "h-6 w-6" }) {
       <>
         <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
         <path d="M9 8h6M9 12h6" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m4 7 8 6 8-6" />
       </>
     ),
     phone: <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />,
@@ -453,8 +460,14 @@ export default function Home() {
             <h2 className="text-xl font-bold text-slate-900">Customer care</h2>
             <p className="mt-1 text-sm text-slate-600">Visit your branch and ask any bank employee. They can help with a forgotten password, a locked account, cards and loans.</p>
             <ul className="mt-4 space-y-3 text-sm text-slate-800">
-              <li className="flex items-center gap-3"><Icon name="people" className="h-5 w-5 text-brand-600" /> Konark Main Branch</li>
-              <li className="flex items-center gap-3"><Icon name="bell" className="h-5 w-5 text-brand-600" /> Open Monday to Saturday, 10 am to 5 pm</li>
+              <li className="flex items-center gap-3"><Icon name="people" className="h-5 w-5 text-brand-600" /> {CONTACT.branch}</li>
+              {CONTACT.phone && (
+                <li className="flex items-center gap-3"><Icon name="phone" className="h-5 w-5 text-brand-600" /> <a href={`tel:${CONTACT.phone.replace(/[^+\d]/g, "")}`} className="font-semibold hover:underline">{CONTACT.phone}</a></li>
+              )}
+              {CONTACT.email && (
+                <li className="flex items-center gap-3"><Icon name="mail" className="h-5 w-5 text-brand-600" /> <a href={`mailto:${CONTACT.email}`} className="font-semibold hover:underline">{CONTACT.email}</a></li>
+              )}
+              <li className="flex items-center gap-3"><Icon name="bell" className="h-5 w-5 text-brand-600" /> Open {CONTACT.hours}</li>
             </ul>
           </div>
         </div>
