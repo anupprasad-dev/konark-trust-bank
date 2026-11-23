@@ -5,6 +5,8 @@ import { Spinner } from "./components/ui.jsx";
 import { homePath, useAuth } from "./context/AuthContext.jsx";
 
 const AuthPage = lazy(() => import("./pages/AuthPage.jsx"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
+const LockUnlock = lazy(() => import("./pages/LockUnlock.jsx"));
 const Home = lazy(() => import("./pages/Home.jsx"));
 const Profile = lazy(() => import("./pages/Profile.jsx"));
 const Statement = lazy(() => import("./pages/customer/Statement.jsx"));
@@ -77,6 +79,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<AuthPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/lock-unlock" element={<LockUnlock />} />
 
       <Route
         path="/customer"

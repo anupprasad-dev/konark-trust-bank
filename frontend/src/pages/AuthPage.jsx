@@ -86,10 +86,10 @@ function LoginForm({ notice, staff }) {
         </p>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm">
-          <a href="/#faq" className="font-semibold text-brand-700 hover:underline">Forgot password?</a>
-          <a href="/#faq" className="flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">
+          <Link to="/forgot-password" className="font-semibold text-brand-700 hover:underline">Forgot password?</Link>
+          <Link to="/lock-unlock" className="flex items-center gap-1.5 font-semibold text-brand-700 hover:underline">
             <Icon name="lock" className="h-4 w-4" /> Lock / Unlock user
-          </a>
+          </Link>
         </div>
       )}
     </form>
@@ -362,7 +362,7 @@ const REGISTER_NEEDS = [
 
 const QUICK_ACTIONS = [
   { icon: "alert", label: "Report unauthorised transaction", href: "/#help" },
-  { icon: "lock", label: "Password management", href: "/#faq" },
+  { icon: "lock", label: "Password management", href: "/forgot-password" },
   { icon: "shield", label: "Security tips", href: "/#security" },
   { icon: "mail", label: "Report phishing", href: "/#help" },
   { icon: "info", label: "Cyber fraud", href: "/#security" },
