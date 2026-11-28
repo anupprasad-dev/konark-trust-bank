@@ -818,7 +818,7 @@ def lock_message(user):
         if user.unlock_at:
             return f"You locked this account. It will open at {_when(user.unlock_at)}."
         return "You locked this account. Use Lock / Unlock user on the login page to ask for an unlock."
-    return f"Too many wrong passwords. You can log in after {_when(user.locked_until)}. A bank administrator can unlock it sooner."
+    return f"Too many wrong passwords. You can log in after {_when(user.locked_until)}."
 
 
 def lock_state(user):

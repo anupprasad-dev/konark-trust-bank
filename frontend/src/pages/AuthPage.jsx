@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../api";
+import BackLink from "../components/BackLink.jsx";
 import BrandLogo from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
 import { notice as sessionNotice } from "../api";
@@ -298,12 +299,13 @@ function RegisterForm({ onDone, onBack }) {
       <button className="btn-primary w-full py-3 text-base sm:py-3 sm:text-base" disabled={busy}>
         {busy ? "Submitting..." : "Submit registration request"}
       </button>
-      <p className="border-t border-slate-100 pt-4 text-center text-sm text-slate-500">
-        Already registered?{" "}
-        <button type="button" className="font-bold text-brand-600 hover:underline" onClick={onBack}>
+      <div className="flex flex-col items-center gap-2 border-t border-slate-100 pt-4 text-sm text-slate-500 sm:flex-row sm:justify-between">
+        <span>Already registered?</span>
+        <button type="button" className="btn-outline inline-flex items-center gap-2 px-4 py-2" onClick={onBack}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
           Back to login
         </button>
-      </p>
+      </div>
     </form>
   );
 }
@@ -398,9 +400,11 @@ function CustomerAuth({ mode, setMode, notice, setNotice }) {
       <header className="bg-gradient-to-r from-brand-900 to-brand-700 text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <BrandLogo light to="/" size="lg" />
-          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20 sm:text-sm">
-            &larr; Home
-          </Link>
+          {mode === "register" ? (
+            <BackLink onClick={() => setMode("login")}>Back to login</BackLink>
+          ) : (
+            <BackLink to="/">Back to home</BackLink>
+          )}
         </div>
       </header>
 
@@ -564,9 +568,7 @@ export default function AuthPage() {
       <section className="bg-gradient-to-br from-slate-900 via-brand-900 to-brand-700 px-5 pb-16 pt-5 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between lg:px-16 lg:py-16">
         <div className="flex items-center justify-between">
           <BrandLogo light to="/" size="lg" />
-          <Link to="/" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 lg:hidden">
-            &larr; Home
-          </Link>
+          <BackLink to="/" className="lg:hidden">Back to home</BackLink>
         </div>
 
         <div className="mt-6 lg:my-0 lg:mt-0">

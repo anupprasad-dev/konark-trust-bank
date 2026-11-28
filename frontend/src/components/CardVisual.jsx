@@ -50,7 +50,7 @@ export default function CardVisual({ card, canReveal = true }) {
             ))}
           </g>
         </svg>
-        <WheelMark className="pointer-events-none absolute -bottom-12 -right-10 h-48 w-48 text-white/10" hub={false} />
+        <WheelMark className="pointer-events-none absolute -bottom-12 -right-10 h-48 w-48 text-white/15 animate-[spin_40s_linear_infinite] motion-reduce:animate-none" hub={false} />
         <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-start justify-between">
             <div>

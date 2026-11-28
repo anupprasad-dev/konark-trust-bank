@@ -70,7 +70,7 @@ export default function CustomerDashboard() {
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Balance card: 2 of 5 columns on desktop, full width on phones */}
         <section className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 to-brand-600 p-5 text-white shadow-md shadow-brand-900/10 sm:p-5 lg:col-span-2">
-          <WheelMark className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-white/10" hub={false} />
+          <WheelMark className="pointer-events-none absolute -bottom-10 -right-8 h-36 w-36 text-white/15 animate-[spin_40s_linear_infinite] motion-reduce:animate-none" hub={false} />
           <div className="relative">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-brand-100">Savings account</p>

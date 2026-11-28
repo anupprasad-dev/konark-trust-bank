@@ -118,7 +118,7 @@ export default function Profile() {
     <>
       {/* header strip */}
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600 px-5 py-5 text-white shadow-md sm:px-7 sm:py-6">
-        <WheelMark className="pointer-events-none absolute -right-10 -top-12 h-52 w-52 text-white/10" hub={false} />
+        <WheelMark className="pointer-events-none absolute -right-10 -top-12 h-52 w-52 text-white/15 animate-[spin_40s_linear_infinite] motion-reduce:animate-none" hub={false} />
         <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
           <Avatar name={data.full_name || data.username} src={data.photo} className="h-24 w-24 bg-white text-3xl text-brand-700 ring-4 ring-white/60" />
           <div className="min-w-0 flex-1">

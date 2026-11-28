@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import api, { errorMessage } from "../api";
+import BackLink from "../components/BackLink.jsx";
 import BrandLogo from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
 import { Alert, Input, PasswordInput } from "../components/ui.jsx";
@@ -158,9 +159,7 @@ export default function LockUnlock() {
       <header className="bg-gradient-to-r from-brand-900 to-brand-700 text-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <BrandLogo light to="/" size="lg" />
-          <Link to="/login" className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20 sm:text-sm">
-            &larr; Back to login
-          </Link>
+          <BackLink to="/login">Back to login</BackLink>
         </div>
       </header>
 
