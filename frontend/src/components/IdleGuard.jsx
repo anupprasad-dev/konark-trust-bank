@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { notice } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { Modal } from "./ui.jsx";
 
@@ -25,7 +24,6 @@ export default function IdleGuard() {
     const check = () => {
       const idle = Date.now() - last.current;
       if (idle >= IDLE_MS) {
-        notice.set("You were logged out because there was no activity for 10 minutes.");
         logout();
         navigate("/login", { replace: true });
       } else if (idle >= IDLE_MS - WARN_MS) {

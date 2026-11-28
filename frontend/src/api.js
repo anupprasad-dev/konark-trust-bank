@@ -83,7 +83,6 @@ api.interceptors.response.use(
         return api(original);
       } catch {
         tokens.clear();
-        notice.set("Your session ended. Please log in again.");
         window.location.href = "/login";
       }
     }

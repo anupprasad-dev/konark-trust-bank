@@ -10,12 +10,22 @@ import { applyTheme, getTheme, saveTheme } from "../theme";
 import { Avatar, Modal, Spinner } from "./ui.jsx";
 
 /** One item of the phone bottom bar. */
-function TabItem({ icon, label, active }) {
-  return (
-    <span className={`flex flex-col items-center gap-0.5 pb-2 pt-2 text-[11px] font-bold transition-colors ${active ? "text-brand-700" : "text-slate-500"}`}>
-      <span className={`flex h-8 w-14 items-center justify-center rounded-full transition-all duration-200 ${active ? "scale-105 bg-brand-100" : ""}`}>
-        <Icon name={icon} className="h-[1.35rem] w-[1.35rem]" />
+function TabItem({ icon, label, active, fab }) {
+  if (fab) {
+    // the main action sits in the middle, raised above the bar
+    return (
+      <span className="flex flex-col items-center text-[11px] font-bold text-brand-700">
+        <span className={`-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-lg shadow-brand-900/30 ring-4 ring-white transition-transform duration-200 ${active ? "scale-110" : ""}`}>
+          <Icon name={icon} className="h-6 w-6" />
+        </span>
+        <span className="pb-2 pt-1">{label}</span>
       </span>
+    );
+  }
+  return (
+    <span className={`relative flex flex-col items-center gap-0.5 pb-2 pt-2.5 text-[11px] font-bold transition-colors ${active ? "text-brand-700" : "text-slate-500"}`}>
+      <span className={`absolute left-1/2 top-0 h-1 -translate-x-1/2 rounded-b-full bg-brand-600 transition-all duration-200 ${active ? "w-8" : "w-0"}`} aria-hidden="true" />
+      <Icon name={icon} className={`h-6 w-6 transition-transform duration-200 ${active ? "-translate-y-0.5 scale-110" : ""}`} />
       <span className="max-w-full truncate px-1">{label}</span>
     </span>
   );
@@ -102,6 +112,11 @@ export default function Layout({ roleLabel, links, profileTo }) {
   const flagged = links.filter((l) => l.mobile);
   const primary = links.length <= 5 ? links : flagged.length ? flagged : links.slice(0, 4);
   const more = links.filter((l) => !primary.includes(l));
+  // a "fab" page (Fund Transfer) goes in the middle of the bar
+  const slots = primary.length + (more.length ? 1 : 0);
+  const fabLink = primary.find((l) => l.fab);
+  const bar = fabLink ? [...primary.filter((l) => l !== fabLink)] : [...primary];
+  if (fabLink) bar.splice(Math.floor(slots / 2), 0, fabLink);
   const moreActive = more.some((l) => (l.end ? location.pathname === l.to : location.pathname.startsWith(l.to)));
 
   return (
@@ -183,15 +198,15 @@ export default function Layout({ roleLabel, links, profileTo }) {
 
       {/* Phone bottom bar: the main pages, and "More" for the rest */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-slate-200 bg-white/95 shadow-[0_-6px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Sections"
       >
         <ul className="mx-auto grid max-w-lg" style={{ gridTemplateColumns: `repeat(${primary.length + (more.length ? 1 : 0)}, minmax(0, 1fr))` }}>
-          {primary.map((link) => (
+          {bar.map((link) => (
             <li key={link.to}>
               <NavLink to={link.to} end={link.end} className="block" onClick={() => setSheet(null)}>
-                {({ isActive }) => <TabItem icon={link.icon} label={link.short || link.label} active={isActive} />}
+                {({ isActive }) => <TabItem icon={link.icon} label={link.short || link.label} active={isActive} fab={link.fab} />}
               </NavLink>
             </li>
           ))}
@@ -206,23 +221,42 @@ export default function Layout({ roleLabel, links, profileTo }) {
       </nav>
 
       {sheet === "more" && (
-        <Sheet title="More" onClose={() => setSheet(null)}>
-          <div className="grid grid-cols-3 gap-3">
+        <Sheet title="More services" onClose={() => setSheet(null)}>
+          <div className="grid grid-cols-2 gap-3">
             {more.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 end={link.end}
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-2 rounded-2xl px-2 py-4 text-center text-xs font-bold transition active:scale-95 ${
-                    isActive ? "bg-brand-700 text-white" : "bg-slate-50 text-slate-700"
+                  `flex items-center gap-3 rounded-2xl p-3 text-left transition active:scale-[0.97] ${
+                    isActive ? "bg-brand-700 text-white" : "bg-slate-50 text-slate-800 ring-1 ring-slate-200"
                   }`
                 }
               >
-                <Icon name={link.icon} className="h-6 w-6" />
-                {link.short || link.label}
+                {({ isActive }) => (
+                  <>
+                    <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${isActive ? "bg-white/15" : "bg-white text-brand-700 shadow-sm"}`}>
+                      <Icon name={link.icon} className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 text-sm font-bold leading-tight">{link.short || link.label}</span>
+                  </>
+                )}
               </NavLink>
             ))}
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+            {profileTo && (
+              <NavLink to={profileTo} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 py-3 text-xs font-bold text-slate-700 active:scale-95">
+                <Icon name="user" className="h-5 w-5 text-brand-700" /> Profile
+              </NavLink>
+            )}
+            <button onClick={flipTheme} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 py-3 text-xs font-bold text-slate-700 active:scale-95">
+              <Icon key={theme} name={theme === "dark" ? "sun" : "moon"} className="h-5 w-5 animate-icon-pop text-amber-600" /> {theme === "dark" ? "Light" : "Dark"}
+            </button>
+            <button onClick={() => { setSheet(null); onLogout(); }} className="flex flex-col items-center gap-1.5 rounded-xl bg-red-50 py-3 text-xs font-bold text-red-600 active:scale-95">
+              <Icon name="logout" className="h-5 w-5" /> Logout
+            </button>
           </div>
         </Sheet>
       )}

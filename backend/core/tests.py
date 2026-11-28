@@ -1927,3 +1927,78 @@ class LockoutTests(BankTestBase):
         self.login("asha")
         r = self.client.get("/api/customer/account/")
         self.assertEqual(r["Cache-Control"], "no-store")
+
+
+
+class SelfLockTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+
+    def lock(self, password=PASSWORD, username="asha"):
+        return self.client.post("/api/auth/lock/", {"username": username, "password": password}, format="json")
+
+    def unlock(self, phone="9876543210", password=PASSWORD):
+        return self.client.post(
+            "/api/auth/unlock-request/", {"username": "asha", "password": password, "phone": phone}, format="json"
+        )
+
+    def try_login(self):
+        return self.client.post("/api/auth/login/", {"username": "asha", "password": PASSWORD}, format="json")
+
+    def test_locking_blocks_login(self):
+        self.assertEqual(self.lock().status_code, 200)
+        r = self.try_login()
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("You locked this account", r.data["detail"])
+
+    def test_locking_ends_an_open_session(self):
+        self.login("asha")
+        self.assertEqual(self.client.get("/api/customer/account/").status_code, 200)
+        self.client.credentials()
+        self.assertEqual(self.lock().status_code, 200)
+        self.assertEqual(self.try_login().status_code, 429)
+
+    def test_wrong_password_cannot_lock_and_message_is_generic(self):
+        bad = self.lock("nope")
+        ghost = self.lock(username="ghost")
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(bad.data["detail"], ghost.data["detail"])
+        self.assertEqual(self.try_login().status_code, 200)
+
+    def test_unlock_needs_the_waiting_time(self):
+        self.lock()
+        r = self.unlock()
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data["state"]["unlock_requested"])
+        self.assertEqual(self.try_login().status_code, 429)  # still waiting
+        User.objects.filter(pk=self.asha.pk).update(unlock_at=timezone.now() - timedelta(minutes=1))
+        self.assertEqual(self.try_login().status_code, 200)  # the time is over
+
+    def test_unlock_needs_the_registered_mobile(self):
+        self.lock()
+        self.assertEqual(self.unlock(phone="9000000000").status_code, 400)
+        self.assertEqual(self.unlock(password="nope").status_code, 400)
+        self.asha.refresh_from_db()
+        self.assertIsNone(self.asha.unlock_at)
+
+    def test_asking_again_does_not_restart_the_clock(self):
+        self.lock()
+        first = self.unlock().data["state"]["unlock_at"]
+        again = self.unlock().data["state"]["unlock_at"]
+        self.assertEqual(first, again)
+
+    def test_unlock_when_not_locked_is_refused(self):
+        self.assertEqual(self.unlock().status_code, 400)
+
+    def test_bank_can_unlock_a_self_locked_account(self):
+        admin = make_user("boss", Role.ADMIN)
+        self.lock()
+        self.login("boss")
+        self.assertEqual(self.client.post(f"/api/admin-panel/users/{self.asha.id}/unlock/").status_code, 200)
+        self.client.credentials()
+        self.assertEqual(self.try_login().status_code, 200)
+
+    def test_staff_accounts_cannot_use_the_public_lock(self):
+        make_user("emp", Role.EMPLOYEE)
+        self.assertEqual(self.lock(username="emp").status_code, 400)

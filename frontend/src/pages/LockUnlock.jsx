@@ -1,59 +1,157 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import api, { errorMessage } from "../api";
 import BrandLogo from "../components/Brand.jsx";
 import Icon from "../components/icons.jsx";
+import { Alert, Input, PasswordInput } from "../components/ui.jsx";
 import { CONTACT } from "../config/contact.js";
 import { homePath, useAuth } from "../context/AuthContext.jsx";
 
-const TABS = {
-  unlock: {
-    label: "Unlock user",
-    icon: "lock",
-    heading: "My account is locked",
-    intro: "Find out why your login is blocked and how to open it again.",
-    cases: [
-      {
-        title: "Too many wrong passwords",
-        text: "After 5 wrong passwords the login is locked for 15 minutes. It opens by itself. You do not need to do anything except wait.",
-      },
-      {
-        title: "Says you are already logged in",
-        text: "Only one login is allowed at a time. If you closed the tab without logging out, wait up to 10 minutes and try again.",
-      },
-      {
-        title: "Cannot wait or forgot the password",
-        text: "A bank employee can set a new password, and this also opens a locked account.",
-        link: { to: "/forgot-password", label: "Reset my password" },
-      },
-    ],
-  },
-  lock: {
-    label: "Lock user",
-    icon: "shield",
-    heading: "I want to lock my account",
-    intro: "Lost your phone or sensed something wrong? Stop money leaving your account right away.",
-    cases: [
-      {
-        title: "Freeze your account yourself",
-        text: "Log in, open Profile and choose Freeze account. No money can leave while it is frozen. You can still receive money, and you can unfreeze any time.",
-      },
-      {
-        title: "Cannot log in to freeze it",
-        text: `Visit ${CONTACT.branch} (${CONTACT.hours}) and ask any bank employee to freeze your account.`,
-      },
-      {
-        title: "Block a lost card",
-        text: "Log in, open Cards and choose Block on the card. You can unblock it later.",
-      },
-    ],
-  },
-};
+const fmt = (iso) =>
+  new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+/** "42 min" / "1 h 05 min" until the given time. Updates every 20 seconds. */
+function useCountdown(iso) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!iso) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 20000);
+    return () => clearInterval(t);
+  }, [iso]);
+  if (!iso) return "";
+  const mins = Math.max(0, Math.ceil((new Date(iso).getTime() - now) / 60000));
+  if (mins === 0) return "any moment now";
+  return mins >= 60 ? `${Math.floor(mins / 60)} h ${String(mins % 60).padStart(2, "0")} min` : `${mins} min`;
+}
+
+function Wait({ state }) {
+  const left = useCountdown(state.unlock_at);
+  return (
+    <div className="fade-in rounded-2xl bg-emerald-50 p-5 text-center ring-1 ring-emerald-200">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white">
+        <Icon name="check" className="h-6 w-6" />
+      </span>
+      <p className="mt-3 text-base font-extrabold text-emerald-900">Unlock request received</p>
+      <p className="mt-1 text-sm text-emerald-900">
+        Your account opens at <b>{fmt(state.unlock_at)}</b> (in {left}).
+      </p>
+      <p className="mt-3 text-xs text-emerald-800">
+        This waiting time keeps you safe: if someone else had your password they cannot open the account at once.
+        When the time is over, log in and change your password.
+      </p>
+    </div>
+  );
+}
+
+function LockForm() {
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!confirm) {
+      setConfirm(true);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api.post("/auth/lock/", form);
+      setDone(true);
+    } catch (err) {
+      setError(errorMessage(err));
+      setConfirm(false);
+    }
+    setBusy(false);
+  };
+
+  if (done)
+    return (
+      <div className="fade-in space-y-3 rounded-2xl bg-red-50 p-5 text-center ring-1 ring-red-200">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white">
+          <Icon name="lock" className="h-6 w-6" />
+        </span>
+        <p className="text-base font-extrabold text-red-900">Your account is locked</p>
+        <p className="text-sm text-red-900">
+          Nobody can log in now, and any open login was ended. To open it again, use the <b>Unlock user</b> tab.
+        </p>
+      </div>
+    );
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Think someone else got into your account? Lock it now. Nobody, including you, can log in until you ask for an
+        unlock and the waiting time is over.
+      </p>
+      <Alert>{error}</Alert>
+      <Input label="Username" icon="at" value={form.username} onChange={set("username")} autoCapitalize="none" autoComplete="username" required />
+      <PasswordInput label="Password" value={form.password} onChange={set("password")} autoComplete="current-password" required />
+      {confirm && (
+        <p className="fade-in flex gap-2.5 rounded-xl bg-amber-50 p-3.5 text-sm text-amber-900 ring-1 ring-amber-200" role="alert">
+          <Icon name="alert" className="mt-0.5 h-5 w-5 flex-none" />
+          You will not be able to log in until you unlock. Press the button again to lock.
+        </p>
+      )}
+      <button className={`w-full py-3 ${confirm ? "btn-danger" : "btn-primary"}`} disabled={busy}>
+        {busy ? "Locking..." : confirm ? "Yes, lock my account" : "Lock my account"}
+      </button>
+    </form>
+  );
+}
+
+function UnlockForm() {
+  const [form, setForm] = useState({ username: "", password: "", phone: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState(null);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await api.post("/auth/unlock-request/", form);
+      setState(data.state);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+    setBusy(false);
+  };
+
+  if (state?.unlock_at) return <Wait state={state} />;
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-slate-600">
+        To open your account, enter your login details and the mobile number you registered with. Your account opens
+        after a waiting time of <b>{state?.wait_minutes ?? 60} minutes</b>. Ask again later to see how much time is left.
+      </p>
+      <Alert>{error}</Alert>
+      <Input label="Username" icon="at" value={form.username} onChange={set("username")} autoCapitalize="none" autoComplete="username" required />
+      <PasswordInput label="Password" value={form.password} onChange={set("password")} autoComplete="current-password" required />
+      <Input label="Registered mobile number" icon="phone" value={form.phone} onChange={set("phone")} inputMode="numeric" maxLength={10} autoComplete="tel-national" required />
+      <button className="btn-primary w-full py-3" disabled={busy}>
+        {busy ? "Sending..." : "Request unlock"}
+      </button>
+    </form>
+  );
+}
+
+const TABS = [
+  { key: "unlock", label: "Unlock user", icon: "lock" },
+  { key: "lock", label: "Lock user", icon: "shield" },
+];
 
 export default function LockUnlock() {
   const { user, checking } = useAuth();
-  const [tab, setTab] = useState("unlock");
+  const [tab, setTab] = useState("lock");
   if (!checking && user) return <Navigate to={homePath(user.role)} replace />;
-  const t = TABS[tab];
 
   return (
     <div className="fade-in min-h-dvh bg-slate-50">
@@ -66,54 +164,32 @@ export default function LockUnlock() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-8 sm:py-10">
+      <main className="mx-auto max-w-xl px-4 py-8 sm:py-10">
         <p className="text-lg text-slate-500">Lock / Unlock user</p>
         <h1 className="text-2xl font-extrabold text-slate-900 sm:text-4xl">Keep your account safe</h1>
 
         <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1" role="tablist">
-          {Object.entries(TABS).map(([key, v]) => (
+          {TABS.map((t) => (
             <button
-              key={key}
+              key={t.key}
               role="tab"
-              aria-selected={tab === key}
-              onClick={() => setTab(key)}
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
               className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold transition ${
-                tab === key ? "bg-white text-brand-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                tab === t.key ? "bg-white text-brand-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <Icon name={v.icon} className="h-4 w-4" /> {v.label}
+              <Icon name={t.icon} className="h-4 w-4" /> {t.label}
             </button>
           ))}
         </div>
 
-        <div key={tab} className="card form-swap mt-4 space-y-5 p-5 shadow-lg sm:p-8" role="tabpanel">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-900">{t.heading}</h2>
-            <p className="mt-1 text-sm text-slate-500">{t.intro}</p>
-          </div>
-          <ol className="space-y-4">
-            {t.cases.map((c, i) => (
-              <li key={c.title} className="flex gap-3">
-                <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-brand-700 text-xs font-bold text-white">{i + 1}</span>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{c.title}</p>
-                  <p className="mt-0.5 text-sm text-slate-600">{c.text}</p>
-                  {c.link && (
-                    <Link to={c.link.to} className="mt-1.5 inline-block text-sm font-bold text-brand-700 hover:underline">{c.link.label} &rarr;</Link>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-          {(CONTACT.phone || CONTACT.email) && (
-            <p className="flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-4 text-sm">
-              {CONTACT.phone && <a className="font-semibold text-brand-700 hover:underline" href={`tel:${CONTACT.phone.replace(/[^+\d]/g, "")}`}>{CONTACT.phone}</a>}
-              {CONTACT.email && <a className="font-semibold text-brand-700 hover:underline" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>}
-            </p>
-          )}
-          <p className="flex gap-2.5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
-            <Icon name="shield" className="mt-0.5 h-5 w-5 flex-none" />
-            Konark Trust Bank never asks for your password, PIN or OTP on a call or message.
+        <div key={tab} className="card form-swap mt-4 space-y-4 p-5 shadow-lg sm:p-8" role="tabpanel">
+          {tab === "lock" ? <LockForm /> : <UnlockForm />}
+          <p className="border-t border-slate-100 pt-4 text-center text-sm text-slate-500">
+            Forgot your password or need help?{" "}
+            <Link to="/forgot-password" className="font-bold text-brand-700 hover:underline">Reset your password</Link>
+            {(CONTACT.phone || CONTACT.email) && " or contact the bank."}
           </p>
         </div>
       </main>

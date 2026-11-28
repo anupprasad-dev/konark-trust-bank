@@ -47,7 +47,7 @@ function Landing() {
 
 const customerLinks = [
   { to: "/customer", label: "Dashboard", short: "Home", end: true, icon: "home", mobile: true },
-  { to: "/customer/transfer", label: "Fund Transfer", short: "Transfer", icon: "send", mobile: true },
+  { to: "/customer/transfer", label: "Fund Transfer", short: "Transfer", icon: "send", mobile: true, fab: true },
   { to: "/customer/history", label: "Transaction History", short: "History", icon: "history", mobile: true },
   { to: "/customer/beneficiaries", label: "Beneficiaries", short: "People", icon: "users" },
   { to: "/customer/statement", label: "Account Statement", short: "Statement", icon: "statement" },

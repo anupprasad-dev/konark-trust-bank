@@ -71,6 +71,41 @@ class LoginView(TokenObtainPairView):
         return response
 
 
+class SelfLockView(APIView):
+    """Public: a customer who thinks someone else got into their account locks it. Needs username and password."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        try:
+            user = services.self_lock_account(request.data.get("username"), request.data.get("password"))
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response({"detail": "Your account is locked. Nobody can log in to it now.", "state": services.lock_state(user)})
+
+
+class SelfUnlockRequestView(APIView):
+    """Public: asks for the lock to be lifted. Needs username, password and the registered mobile number.
+    The login opens only after the waiting time, so someone who stole the password cannot undo the lock at once."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        try:
+            user = services.request_self_unlock(
+                request.data.get("username"), request.data.get("password"), request.data.get("phone")
+            )
+        except services.BankError as exc:
+            return _bad(str(exc))
+        return Response({"detail": "Unlock request received.", "state": services.lock_state(user)})
+
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]  # the photo arrives as a file upload

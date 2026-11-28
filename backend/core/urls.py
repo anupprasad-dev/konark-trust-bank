@@ -8,6 +8,8 @@ urlpatterns = [
     path("auth/refresh/", views.SessionRefreshView.as_view()),
     path("auth/logout/", views.LogoutView.as_view()),
     path("auth/register/", views.RegisterView.as_view()),
+    path("auth/lock/", views.SelfLockView.as_view()),
+    path("auth/unlock-request/", views.SelfUnlockRequestView.as_view()),
     path("auth/login-activity/", views.LoginActivityView.as_view()),
     path("auth/me/", views.MeView.as_view()),
     path("notifications/", views.NotificationListView.as_view()),

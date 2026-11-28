@@ -34,6 +34,8 @@ class User(AbstractUser):
     session_seen = models.DateTimeField(null=True, blank=True)      # last time that login was used
     failed_logins = models.PositiveSmallIntegerField(default=0)     # wrong passwords in a row (see services.register_failed_login)
     locked_until = models.DateTimeField(null=True, blank=True)       # too many wrong passwords: locked until then
+    self_locked = models.BooleanField(default=False)                 # the customer locked their own login (Lock / Unlock page)
+    unlock_at = models.DateTimeField(null=True, blank=True)          # after an unlock request: the login opens at this time
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.CUSTOMER)
 
     objects = BankUserManager()

@@ -793,13 +793,89 @@ MAX_FAILED_LOGINS = 5
 LOCK_MINUTES = 15
 
 
-def is_locked(user):
+SELF_UNLOCK_MINUTES = 60  # waiting time between an unlock request and the login opening again
+
+
+def _wrong_password_lock(user):
     return bool(user.locked_until and user.locked_until > timezone.now())
 
 
+def _self_lock(user):
+    """True while the customer's own lock is on: no unlock request yet, or the waiting time is not over."""
+    return bool(user.self_locked and (user.unlock_at is None or user.unlock_at > timezone.now()))
+
+
+def is_locked(user):
+    return _wrong_password_lock(user) or _self_lock(user)
+
+
+def _when(value):
+    return timezone.localtime(value).strftime("%d %b, %I:%M %p")
+
+
 def lock_message(user):
+    if _self_lock(user):
+        if user.unlock_at:
+            return f"You locked this account. It will open at {_when(user.unlock_at)}."
+        return "You locked this account. Use Lock / Unlock user on the login page to ask for an unlock."
     until = timezone.localtime(user.locked_until).strftime("%I:%M %p")
     return f"Too many wrong passwords. This account is locked until {until}. A bank employee can unlock it sooner."
+
+
+def lock_state(user):
+    """What the Lock / Unlock page shows after each action."""
+    return {
+        "locked": _self_lock(user),
+        "unlock_requested": bool(_self_lock(user) and user.unlock_at),
+        "unlock_at": user.unlock_at if _self_lock(user) and user.unlock_at else None,
+        "wait_minutes": SELF_UNLOCK_MINUTES,
+    }
+
+
+def _same_phone(saved, given):
+    digits = lambda v: "".join(ch for ch in str(v or "") if ch.isdigit())[-10:]
+    return bool(digits(saved)) and digits(saved) == digits(given)
+
+
+def _verified_customer(username, password, phone=None):
+    """Checks the login details typed on the public Lock / Unlock page. Every mistake gives the same message,
+    so nobody can find out which usernames exist, and wrong tries count towards the normal wrong-password lock."""
+    user = User.objects.filter(username=str(username or "").strip().lower(), role=Role.CUSTOMER, is_active=True).first()
+    generic = BankError("The details you entered do not match. Please check and try again.")
+    if not user:
+        raise generic
+    if _wrong_password_lock(user):
+        raise BankError(lock_message(user))
+    ok = user.check_password(str(password or ""))
+    if ok and phone is not None:
+        ok = _same_phone(user.phone, phone)
+    if not ok:
+        register_failed_login(user)
+        raise generic
+    return user
+
+
+def self_lock_account(username, password):
+    """The customer locks their own login at once and any open session is ended."""
+    user = _verified_customer(username, password)
+    if _self_lock(user):
+        return user
+    user.self_locked, user.unlock_at = True, None
+    user.save(update_fields=["self_locked", "unlock_at"])
+    authentication.end_session(user)
+    notify(user, "account", "You locked your account", "Nobody can log in until the unlock time you requested.")
+    return user
+
+
+def request_self_unlock(username, password, phone):
+    """Starts the waiting time. The login opens only after SELF_UNLOCK_MINUTES. Asking again does not restart the clock."""
+    user = _verified_customer(username, password, phone)
+    if not _self_lock(user):
+        raise BankError("This account is not locked by you, so there is nothing to unlock. You can log in.")
+    if user.unlock_at is None:
+        user.unlock_at = timezone.now() + timedelta(minutes=SELF_UNLOCK_MINUTES)
+        user.save(update_fields=["unlock_at"])
+    return user
 
 
 def register_failed_login(user):
@@ -818,9 +894,11 @@ def register_failed_login(user):
 
 
 def clear_failed_logins(user):
-    if user.failed_logins or user.locked_until:
+    """Used after a good login and by the bank when it unlocks an account: clears every kind of lock."""
+    if user.failed_logins or user.locked_until or user.self_locked or user.unlock_at:
         user.failed_logins, user.locked_until = 0, None
-        user.save(update_fields=["failed_logins", "locked_until"])
+        user.self_locked, user.unlock_at = False, None
+        user.save(update_fields=["failed_logins", "locked_until", "self_locked", "unlock_at"])
 
 
 # ------------------------------------------------------------------ security
