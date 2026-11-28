@@ -3,6 +3,64 @@ import { Alert, Badge, DirectionIcon, Empty, formatDate, formatINR, PageHeader, 
 import HistoryFilters from "../../components/HistoryFilters.jsx";
 import { useApi } from "../../hooks";
 
+const dayKey = (iso) => new Date(iso).toDateString();
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 86400000);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+const timeOf = (iso) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+
+/** Phone view: the day as a heading, then one tidy row per transaction. */
+function MobileList({ rows }) {
+  const groups = [];
+  rows.forEach((t) => {
+    const last = groups[groups.length - 1];
+    if (last && last.key === dayKey(t.created_at)) last.items.push(t);
+    else groups.push({ key: dayKey(t.created_at), label: dayLabel(t.created_at), items: [t] });
+  });
+  return (
+    <div className="space-y-4 md:hidden">
+      {groups.map((g) => (
+        <section key={g.key}>
+          <h3 className="mb-1.5 px-1 text-xs font-extrabold uppercase tracking-wider text-slate-500">{g.label}</h3>
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+            {g.items.map((t) => {
+              const credit = t.direction === "CREDIT";
+              const cancelled = t.status === "cancelled";
+              return (
+                <li key={t.id} className="flex items-center gap-3 px-3.5 py-3">
+                  <DirectionIcon credit={credit} />
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-[15px] font-bold ${cancelled ? "text-slate-400 line-through" : "text-slate-900"}`}>{t.counterparty_name}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {timeOf(t.created_at)}
+                      {t.remark ? ` · ${t.remark}` : ""}
+                    </p>
+                    {(cancelled || t.txn_type === "reversal") && (
+                      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                        {cancelled && <Badge kind="cancelled">Cancelled</Badge>}
+                        {t.txn_type === "reversal" && <Badge kind="reversal">Reversal</Badge>}
+                        {cancelled && t.cancel_reason && <span>{t.cancel_reason}</span>}
+                      </p>
+                    )}
+                  </div>
+                  <p className={`num flex-none text-[15px] font-extrabold ${cancelled ? "text-slate-400" : credit ? "text-emerald-600" : "text-red-600"}`}>
+                    {credit ? "+" : "-"}{formatINR(t.amount)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 const BLANK = { q: "", type: "", date_from: "", date_to: "" };
 
 export default function History() {
@@ -33,12 +91,14 @@ export default function History() {
         onReset={reset}
       />
 
-      <div className="card">
-        <Alert>{error}</Alert>
+      <Alert>{error}</Alert>
+      {!loading && data?.results?.length > 0 && <MobileList rows={data.results} />}
+      <div className="md:card">
         {loading ? (
           <Spinner />
         ) : data?.results?.length ? (
           <>
+            <div className="hidden md:block">
             <Table headers={["Date", "Reference", "Details", "Type", "Amount"]}>
               {data.results.map((t) => (
                 <tr key={t.id}>
@@ -75,6 +135,7 @@ export default function History() {
                 </tr>
               ))}
             </Table>
+            </div>
             <Pagination page={page} count={data.count} onPage={setPage} />
           </>
         ) : (

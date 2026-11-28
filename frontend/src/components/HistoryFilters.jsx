@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Icon from "./icons.jsx";
 
 const TYPES = [
@@ -8,6 +9,7 @@ const TYPES = [
 
 /** Search + type switch + date range. Used by the customer and employee history pages. */
 export default function HistoryFilters({ draft, setDraft, onApply, onReset }) {
+  const [open, setOpen] = useState(Boolean(draft.date_from || draft.date_to)); // date range is folded away on phones
   const set = (key) => (e) => setDraft({ ...draft, [key]: e.target.value });
   const pickType = (type) => {
     const next = { ...draft, type };
@@ -45,7 +47,20 @@ export default function HistoryFilters({ draft, setDraft, onApply, onReset }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-700 sm:hidden"
+      >
+        <span className="flex items-center gap-2">
+          <Icon name="calendar" className="h-4 w-4 text-brand-600" /> Date range
+          {(draft.date_from || draft.date_to) && <span className="h-2 w-2 rounded-full bg-brand-600" aria-label="Date filter on" />}
+        </span>
+        <Icon name="chevron" className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+
+      <div className={`${open ? "flex" : "hidden"} flex-col gap-3 sm:flex sm:flex-row sm:items-end`}>
         <label className="flex-1 text-sm font-medium text-slate-600">
           From
           <input className="input mt-1" type="date" value={draft.date_from} onChange={set("date_from")} />
@@ -59,6 +74,9 @@ export default function HistoryFilters({ draft, setDraft, onApply, onReset }) {
           <button type="button" className="btn-outline" onClick={onReset}>Reset</button>
         </div>
       </div>
+      {!open && (draft.q || draft.date_from || draft.date_to) && (
+        <button type="button" onClick={onReset} className="text-xs font-bold text-brand-700 hover:underline sm:hidden">Clear filters</button>
+      )}
     </form>
   );
 }

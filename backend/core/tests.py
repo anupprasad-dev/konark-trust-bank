@@ -1860,25 +1860,30 @@ class LockoutTests(BankTestBase):
     def try_login(self, password):
         return self.client.post("/api/auth/login/", {"username": "asha", "password": password}, format="json")
 
-    def test_five_wrong_passwords_lock_the_account(self):
-        for _ in range(4):
-            self.assertEqual(self.try_login("nope").status_code, 401)
-        self.assertEqual(self.try_login("nope").status_code, 401)  # the fifth wrong try sets the lock
-        r = self.try_login(PASSWORD)  # even the right password is refused now
+    def test_three_wrong_passwords_lock_the_account_for_a_day(self):
+        r = self.try_login("nope")
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.data["detail"], "Wrong password. 2 attempts left.")
+        r = self.try_login("nope")
+        self.assertEqual(r.data["detail"], "Wrong password. 1 attempt left.")
+        r = self.try_login("nope")  # the third wrong try sets the lock and says when it ends
         self.assertEqual(r.status_code, 429)
-        self.assertIn("locked", r.data["detail"])
+        self.assertIn("You can log in after", r.data["detail"])
+        self.assertEqual(self.try_login(PASSWORD).status_code, 429)  # even the right password is refused now
+        self.asha.refresh_from_db()
+        self.assertGreater(self.asha.locked_until, timezone.now() + timedelta(hours=23))
 
     def test_good_login_resets_the_count(self):
-        for _ in range(4):
+        for _ in range(2):
             self.try_login("nope")
         self.assertEqual(self.try_login(PASSWORD).status_code, 200)
         self.asha.refresh_from_db()
         self.assertEqual(self.asha.failed_logins, 0)
-        for _ in range(4):
+        for _ in range(2):
             self.assertEqual(self.try_login("nope").status_code, 401)
 
     def test_lock_ends_after_the_time(self):
-        for _ in range(5):
+        for _ in range(3):
             self.try_login("nope")
         User.objects.filter(pk=self.asha.pk).update(locked_until=timezone.now() - timedelta(minutes=1))
         self.assertEqual(self.try_login(PASSWORD).status_code, 200)
@@ -1892,7 +1897,7 @@ class LockoutTests(BankTestBase):
         make_user("ravi", Role.CUSTOMER, with_account=True)
         self.login("asha")
         body = {"to_account_number": User.objects.get(username="ravi").account.account_number, "amount": "10", "password": "bad"}
-        for _ in range(5):
+        for _ in range(3):
             self.assertEqual(self.client.post("/api/customer/transfer/", body, format="json").status_code, 400)
         self.asha.refresh_from_db()
         self.assertTrue(services.is_locked(self.asha))
@@ -1900,7 +1905,7 @@ class LockoutTests(BankTestBase):
         self.assertEqual(self.client.post("/api/customer/transfer/", body, format="json").status_code, 400)
 
     def test_password_reset_unlocks(self):
-        for _ in range(5):
+        for _ in range(3):
             self.try_login("nope")
         make_user("emp1", Role.EMPLOYEE)
         self.login("emp1")
@@ -1914,7 +1919,7 @@ class LockoutTests(BankTestBase):
         self.assertFalse(services.is_locked(self.asha))
 
     def test_admin_can_unlock(self):
-        for _ in range(5):
+        for _ in range(3):
             self.try_login("nope")
         make_user("boss", Role.ADMIN)
         self.login("boss")

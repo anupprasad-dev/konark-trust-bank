@@ -39,8 +39,11 @@ function LoginForm({ notice, staff }) {
       navigate(homePath(user.role), { replace: true });
     } catch (err) {
       const status = err?.response?.status;
+      const detail = String(err?.response?.data?.detail || "");
       setError(
-        status === 401
+        status === 401 && detail.startsWith("Wrong password")
+          ? detail // "Wrong password. 2 attempts left."
+          : status === 401
           ? staff
             ? "Invalid username or password."
             : "Invalid username or password. New customers can log in only after an employee approves their request."
@@ -371,7 +374,7 @@ const QUICK_ACTIONS = [
 
 const NOTICES = [
   "Only one login is allowed per user at a time. If you closed a tab without logging out, you can log in again after 10 minutes.",
-  "Five wrong passwords lock your account for 15 minutes. It opens again by itself.",
+  "Three wrong passwords lock your login for 24 hours. Each wrong try shows how many tries are left.",
   "For your safety you are logged out after 10 minutes without any activity.",
   "Loans with EMI, fixed and recurring deposits and cards are available after you log in.",
 ];

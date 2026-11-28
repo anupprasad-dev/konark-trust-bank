@@ -22,7 +22,7 @@ const PERSONAL_LINKS = [
   { to: "/login?mode=register", label: "New user registration" },
   { href: "#how", label: "How do I open an account?" },
   { href: "#help", label: "Customer care" },
-  { href: "#faq", label: "Locked out? Forgot password?" },
+  { to: "/forgot-password", label: "Forgot password?" },
 ];
 
 const STAFF_LINKS = [
@@ -163,13 +163,13 @@ const STEPS = [
 const TIPS = [
   "Konark Trust Bank staff will never ask for your password over a call, message or email.",
   "Never share your password with anyone, even a person who says they work for the bank.",
-  "Five wrong passwords lock your account for 15 minutes. Use a password you remember and do not use anywhere else.",
+  "Three wrong passwords lock your login for 24 hours. Use a password you remember and do not use anywhere else.",
   "Only one login is allowed at a time, and you are logged out after 10 idle minutes. Always check the address bar before you type your password.",
 ];
 
 const FAQ = [
   { q: "How do I open an account?", a: "Press New user registration, fill in the form, add your photo and submit. After the bank approves your request you can log in with the username and password you chose." },
-  { q: "I forgot my password or my account is locked. What now?", a: "A wrong password five times locks the account for 15 minutes and it opens by itself after that. If you forgot the password, contact the bank and ask for a new one. They can set one for you without needing the old one, and it also removes the lock." },
+  { q: "I forgot my password or my account is locked. What now?", a: "Three wrong passwords in a row lock the login for 24 hours, and it opens by itself after that. If you think someone else used your account, you can lock it yourself from the Lock / Unlock user page. If you forgot the password, visit your branch and a bank employee will set a new one for you without needing the old one. It also removes the lock." },
   { q: "It says I am already logged in. Why?", a: "For safety only one login is allowed per user. Log out on the other tab or device first. If you closed it without logging out, you can log in again after 10 minutes." },
   { q: "Why was my registration rejected?", a: "The bank gives a reason when a request is rejected. You can contact the bank to have it looked at again, or register again with correct details." },
   { q: "Can I get a statement?", a: "Yes. After login open Account Statement, choose the dates and download the PDF. It needs your password to open." },

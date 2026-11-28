@@ -173,25 +173,27 @@ export default function Layout({ roleLabel, links, profileTo }) {
         </div>
       </aside>
 
-      {/* Phone top bar: logo on the left, my account on the right */}
-      <header className="sticky top-0 z-30 bg-gradient-to-r from-brand-900 to-brand-800 text-white shadow-md md:hidden">
-        <div className="flex items-center justify-between px-4 py-2.5">
-          <div className="min-w-0">
-            <BrandLogo light size="sm" />
-            <p className="mt-0.5 pl-[2.9rem] text-[11px] text-brand-300">{roleLabel}</p>
-          </div>
-          <div className="flex items-center gap-2">
-          {user?.role === "customer" && <NotificationBell />}
-          <button
-            onClick={() => setSheet("account")}
-            aria-label="My account"
-            className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-3 transition active:scale-95"
-          >
-            <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-sun-500 text-brand-900">
-              {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" className="h-4 w-4" />}
+      {/* Phone top bar: logo and greeting on the left, bell and my account on the right */}
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-brand-900 to-brand-800 text-white shadow-md md:hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="flex items-center gap-3 px-4 py-2.5">
+          <NavLink to={links[0]?.to || "/"} className="flex min-w-0 flex-1 items-center gap-2.5" aria-label="Home">
+            <BrandLogo light showName={false} />
+            <span className="min-w-0">
+              <span className="block truncate text-[15px] font-extrabold leading-tight tracking-tight">Konark Trust Bank</span>
+              <span className="block truncate text-xs leading-tight text-brand-200">
+                {user?.role === "customer" ? `Hello, ${(name || "").split(" ")[0]}` : roleLabel}
+              </span>
             </span>
-            <span className="max-w-[6.5rem] truncate text-xs font-bold">{(name || "").split(" ")[0]}</span>
-          </button>
+          </NavLink>
+          <div className="flex flex-none items-center gap-2.5">
+            {user?.role === "customer" && <NotificationBell />}
+            <button
+              onClick={() => setSheet("account")}
+              aria-label="My account"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-sun-500 text-brand-900 ring-2 ring-white/30 transition active:scale-95"
+            >
+              {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" className="h-5 w-5" />}
+            </button>
           </div>
         </div>
       </header>
@@ -222,42 +224,42 @@ export default function Layout({ roleLabel, links, profileTo }) {
 
       {sheet === "more" && (
         <Sheet title="More services" onClose={() => setSheet(null)}>
-          <div className="grid grid-cols-2 gap-3">
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl ring-1 ring-slate-200">
             {more.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.end}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-2xl p-3 text-left transition active:scale-[0.97] ${
-                    isActive ? "bg-brand-700 text-white" : "bg-slate-50 text-slate-800 ring-1 ring-slate-200"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${isActive ? "bg-white/15" : "bg-white text-brand-700 shadow-sm"}`}>
-                      <Icon name={link.icon} className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 text-sm font-bold leading-tight">{link.short || link.label}</span>
-                  </>
-                )}
-              </NavLink>
+              <li key={link.to}>
+                <NavLink
+                  to={link.to}
+                  end={link.end}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3.5 px-4 py-3.5 transition active:bg-slate-100 ${isActive ? "bg-brand-50" : "bg-white"}`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${isActive ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700"}`}>
+                        <Icon name={link.icon} className="h-5 w-5" />
+                      </span>
+                      <span className={`flex-1 text-[15px] font-bold ${isActive ? "text-brand-800" : "text-slate-800"}`}>{link.label}</span>
+                      <Icon name="chevron" className="h-4 w-4 flex-none text-slate-400" />
+                    </>
+                  )}
+                </NavLink>
+              </li>
             ))}
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
-            {profileTo && (
-              <NavLink to={profileTo} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 py-3 text-xs font-bold text-slate-700 active:scale-95">
-                <Icon name="user" className="h-5 w-5 text-brand-700" /> Profile
-              </NavLink>
-            )}
-            <button onClick={flipTheme} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 py-3 text-xs font-bold text-slate-700 active:scale-95">
-              <Icon key={theme} name={theme === "dark" ? "sun" : "moon"} className="h-5 w-5 animate-icon-pop text-amber-600" /> {theme === "dark" ? "Light" : "Dark"}
-            </button>
-            <button onClick={() => { setSheet(null); onLogout(); }} className="flex flex-col items-center gap-1.5 rounded-xl bg-red-50 py-3 text-xs font-bold text-red-600 active:scale-95">
-              <Icon name="logout" className="h-5 w-5" /> Logout
-            </button>
-          </div>
+          </ul>
+          <button
+            onClick={() => setSheet("account")}
+            className="mt-3 flex w-full items-center gap-3.5 rounded-2xl bg-slate-50 px-4 py-3.5 text-left ring-1 ring-slate-200 transition active:bg-slate-100"
+          >
+            <span className="flex h-10 w-10 flex-none items-center justify-center overflow-hidden rounded-full bg-brand-700 text-white">
+              {user?.photo ? <Avatar name={name} src={user.photo} className="h-full w-full text-sm" /> : <Icon name="user" className="h-5 w-5" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-bold text-slate-800">My account</span>
+              <span className="block truncate text-xs text-slate-500">Profile, dark mode, logout</span>
+            </span>
+            <Icon name="chevron" className="h-4 w-4 flex-none text-slate-400" />
+          </button>
         </Sheet>
       )}
 

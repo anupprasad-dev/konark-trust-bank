@@ -65,7 +65,13 @@ class LoginView(TokenObtainPairView):
             self._log(request, False)  # wrong password for a real username
             known = User.objects.filter(username=str(request.data.get("username", "")).strip().lower()).first()
             if known:
-                services.register_failed_login(known)
+                if services.register_failed_login(known):  # that was the last try: say when the login opens again
+                    raise authentication.AccountLocked(services.lock_message(known))
+                left = services.attempts_left(known)
+                return Response(
+                    {"detail": f"Wrong password. {left} {'attempt' if left == 1 else 'attempts'} left."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
             raise
         self._log(request, True)
         return response

@@ -789,8 +789,8 @@ def pay_emi(*, user, loan_id):
 
 
 # ------------------------------------------------------------------ wrong-password lock
-MAX_FAILED_LOGINS = 5
-LOCK_MINUTES = 15
+MAX_FAILED_LOGINS = 3
+LOCK_MINUTES = 24 * 60  # 3 wrong passwords lock the login for 24 hours
 
 
 SELF_UNLOCK_MINUTES = 60  # waiting time between an unlock request and the login opening again
@@ -818,8 +818,7 @@ def lock_message(user):
         if user.unlock_at:
             return f"You locked this account. It will open at {_when(user.unlock_at)}."
         return "You locked this account. Use Lock / Unlock user on the login page to ask for an unlock."
-    until = timezone.localtime(user.locked_until).strftime("%I:%M %p")
-    return f"Too many wrong passwords. This account is locked until {until}. A bank employee can unlock it sooner."
+    return f"Too many wrong passwords. You can log in after {_when(user.locked_until)}. A bank administrator can unlock it sooner."
 
 
 def lock_state(user):
@@ -876,6 +875,10 @@ def request_self_unlock(username, password, phone):
         user.unlock_at = timezone.now() + timedelta(minutes=SELF_UNLOCK_MINUTES)
         user.save(update_fields=["unlock_at"])
     return user
+
+
+def attempts_left(user):
+    return max(0, MAX_FAILED_LOGINS - user.failed_logins)
 
 
 def register_failed_login(user):
