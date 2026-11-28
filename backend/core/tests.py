@@ -2007,3 +2007,41 @@ class SelfLockTests(BankTestBase):
     def test_staff_accounts_cannot_use_the_public_lock(self):
         make_user("emp", Role.EMPLOYEE)
         self.assertEqual(self.lock(username="emp").status_code, 400)
+
+
+class ReceiptTests(BankTestBase):
+    def setUp(self):
+        super().setUp()
+        self.asha = make_user("asha", Role.CUSTOMER, with_account=True, balance="1000")
+        self.ravi = make_user("ravi", Role.CUSTOMER, with_account=True, balance="0")
+        self.other = make_user("meena", Role.CUSTOMER, with_account=True, balance="0")
+        self.txn = services.perform_transfer(
+            user=self.asha, to_number=self.ravi.account.account_number, amount=Decimal("250"), remark="Rent"
+        )
+
+    def receipt(self, name):
+        self.login(name)
+        return self.client.get(f"/api/customer/transactions/{self.txn.id}/receipt/")
+
+    def test_sender_gets_a_pdf(self):
+        r = self.receipt("asha")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        self.assertIn(self.txn.txn_ref, r["Content-Disposition"])
+
+    def test_receiver_gets_a_pdf_too(self):
+        self.assertEqual(self.receipt("ravi").status_code, 200)
+
+    def test_cancelled_transaction_still_has_a_receipt(self):
+        Transaction.objects.filter(pk=self.txn.pk).update(status=Transaction.Status.CANCELLED, cancel_reason="Wrong account")
+        self.assertEqual(self.receipt("asha").status_code, 200)
+
+    def test_someone_else_cannot_open_it(self):
+        self.assertEqual(self.receipt("meena").status_code, 404)
+
+    def test_staff_and_anonymous_are_refused(self):
+        make_user("emp", Role.EMPLOYEE)
+        self.assertEqual(self.receipt("emp").status_code, 403)
+        self.client.credentials()
+        self.assertEqual(self.client.get(f"/api/customer/transactions/{self.txn.id}/receipt/").status_code, 401)

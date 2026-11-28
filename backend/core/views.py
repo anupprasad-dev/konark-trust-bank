@@ -17,6 +17,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import authentication
 
 from . import services
+from .receipt import build_receipt_pdf
 from .statement import StatementTooLarge, build_statement_pdf
 from .models import Account, AuditLog, Beneficiary, BillPayment, Card, Deposit, Feedback, Loan, LoginActivity, Notification, RegistrationRequest, Role, Transaction, User
 from .permissions import IsBankAdmin, IsCustomer, IsEmployee, IsStaff
@@ -269,6 +270,23 @@ class StatementView(APIView):
         filename = f"statement_{account.account_number}_{timezone.localdate():%Y%m%d}.pdf"
         response = HttpResponse(pdf, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class ReceiptView(APIView):
+    """PDF receipt of one of the customer's own transactions (money sent or received)."""
+
+    permission_classes = [IsCustomer]
+
+    def get(self, request, pk):
+        account = get_object_or_404(Account, user=request.user)
+        txn = get_object_or_404(
+            Transaction.objects.select_related("from_account__user", "to_account__user"),
+            Q(from_account=account) | Q(to_account=account),
+            pk=pk,
+        )
+        response = HttpResponse(build_receipt_pdf(txn, account), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="receipt_{txn.txn_ref}.pdf"'
         return response
 
 

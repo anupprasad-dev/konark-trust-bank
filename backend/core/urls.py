@@ -21,6 +21,7 @@ urlpatterns = [
     path("customer/analytics/", views.SpendingAnalyticsView.as_view()),
     path("customer/transactions/", views.MyTransactionsView.as_view()),
     path("customer/statement/", views.StatementView.as_view()),
+    path("customer/transactions/<int:pk>/receipt/", views.ReceiptView.as_view()),
     path("customer/transfer/", views.TransferView.as_view()),
     path("customer/beneficiaries/", views.BeneficiaryListCreateView.as_view()),
     path("customer/beneficiaries/<int:pk>/", views.BeneficiaryDeleteView.as_view()),

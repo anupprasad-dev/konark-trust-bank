@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import api, { errorMessage, fieldErrors } from "../../api";
 import Icon from "../../components/icons.jsx";
 import QrScanButton from "../../components/QrScanButton.jsx";
+import ReceiptButton from "../../components/ReceiptButton.jsx";
 import { Alert, Field, formatDate, formatINR, Input, PageHeader, PasswordInput } from "../../components/ui.jsx";
 import { useApi } from "../../hooks";
 
@@ -66,9 +67,12 @@ export default function Transfer() {
                 </div>
               ))}
             </dl>
-            <div className="grid grid-cols-2 gap-2 px-5 pb-5">
-              <button className="btn-primary" onClick={() => setReceipt(null)}>New transfer</button>
-              <Link to="/customer/history" className="btn-outline">View history</Link>
+            <div className="space-y-2 px-5 pb-5">
+              <ReceiptButton id={receipt.id} className="w-full" />
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-primary" onClick={() => setReceipt(null)}>New transfer</button>
+                <Link to="/customer/history" className="btn-outline">View history</Link>
+              </div>
             </div>
           </div>
         </div>

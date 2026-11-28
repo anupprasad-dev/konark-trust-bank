@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, Badge, DirectionIcon, Empty, formatDate, formatINR, PageHeader, Pagination, Spinner, Table, Td } from "../../components/ui.jsx";
+import ReceiptButton from "../../components/ReceiptButton.jsx";
 import HistoryFilters from "../../components/HistoryFilters.jsx";
 import { useApi } from "../../hooks";
 
@@ -40,6 +41,7 @@ function MobileList({ rows }) {
                       {timeOf(t.created_at)}
                       {t.remark ? ` · ${t.remark}` : ""}
                     </p>
+                    <ReceiptButton id={t.id} variant="link" className="mt-1" />
                     {(cancelled || t.txn_type === "reversal") && (
                       <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
                         {cancelled && <Badge kind="cancelled">Cancelled</Badge>}
@@ -99,7 +101,7 @@ export default function History() {
         ) : data?.results?.length ? (
           <>
             <div className="hidden md:block">
-            <Table headers={["Date", "Reference", "Details", "Type", "Amount"]}>
+            <Table headers={["Date", "Reference", "Details", "Type", "Amount", ""]}>
               {data.results.map((t) => (
                 <tr key={t.id}>
                   <Td className="whitespace-nowrap">{formatDate(t.created_at)}</Td>
@@ -132,6 +134,7 @@ export default function History() {
                   <Td className={`num whitespace-nowrap font-bold ${t.direction === "CREDIT" ? "text-emerald-600" : "text-red-600"}`}>
                     {t.direction === "CREDIT" ? "+" : "-"} {formatINR(t.amount)}
                   </Td>
+                  <Td className="text-right"><ReceiptButton id={t.id} variant="icon" /></Td>
                 </tr>
               ))}
             </Table>

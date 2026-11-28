@@ -13,23 +13,34 @@ A full-stack internet-banking web application built as a portfolio project.
 
 ## Live demo
 
-| | Link |
-|---|---|
-| Website | **https://YOUR-SITE.netlify.app** |
+|                    | Link                                        |
+| ------------------ | ------------------------------------------- |
+| Website            | **https://YOUR-SITE.netlify.app**           |
 | API docs (Swagger) | **https://YOUR-API.onrender.com/api/docs/** |
 
 > The backend runs on a free Render plan and sleeps when idle, so the first request can take about 30 seconds.
 > Demo logins are listed in [Demo logins](#demo-logins-after-seed_demo). Please use test data only.
 
+## 🔑 Live Credentials
+
+Try the live application using the demo accounts below.
+
+| Role     | Username        | Password     |
+| -------- | --------------- | ------------ |
+| Employee | `sunitamohanty` | `Mohanty@09` |
+| Customer | `2306anup`      | `Sonu@12345` |
+
+**Note:** These are public demo credentials for portfolio demonstration only. Do not use real personal or financial information. Access and account availability may change.
+
 ## Screenshots
 
-| Customer dashboard | Fund transfer |
-|---|---|
+| Customer dashboard                           | Fund transfer                              |
+| -------------------------------------------- | ------------------------------------------ |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Transfer](docs/screenshots/transfer.png) |
-| **Cards and deposits** | **Employee: customer accounts** |
-| ![Cards](docs/screenshots/cards.png) | ![Employee](docs/screenshots/employee.png) |
-| **Dark mode** | **Phone layout** |
-| ![Dark](docs/screenshots/dark.png) | ![Mobile](docs/screenshots/mobile.png) |
+| **Cards and deposits**                       | **Employee: customer accounts**            |
+| ![Cards](docs/screenshots/cards.png)         | ![Employee](docs/screenshots/employee.png) |
+| **Dark mode**                                | **Phone layout**                           |
+| ![Dark](docs/screenshots/dark.png)           | ![Mobile](docs/screenshots/mobile.png)     |
 
 ## Architecture
 
@@ -49,8 +60,8 @@ session id inside the token, so one user can have only one live login. Every vie
 **Stack:** React · Tailwind CSS · Django · Django REST Framework · PostgreSQL · JWT
 
 **Highlights:** atomic transfers with row locking · fixed and recurring deposits · debit cards with block/unblock ·
-loans with EMI schedule and early closing · admin dashboard with charts · notification bell · spending charts · QR pay and QR scan · password-protected PDF statements · daily limits, account freeze and audit log ·
-one live login per user, 10-minute idle logout, account lock after 5 wrong passwords, no-store API responses and security headers · per-user dark mode · phone-friendly layout ·
+loans with EMI schedule and early closing · admin dashboard with charts · notification bell · spending charts · QR pay and QR scan · password-protected PDF statements , transaction receipts (PDF)· daily limits, account freeze and audit log ·
+one live login per user, 10-minute idle logout, account lock for 24 hours after 3 wrong passwords, no-store API responses and security headers · per-user dark mode · phone-friendly layout ·
 Swagger API docs · automated tests and CI.
 
 ---
@@ -59,11 +70,11 @@ Swagger API docs · automated tests and CI.
 
 **Three roles, three dashboards**
 
-| Role | How the account is created | What they can do |
-|------|----------------------------|------------------|
-| **Customer** | Registers on the website. A bank employee must approve the request. | View balance, transfer money, manage beneficiaries, search and filter transaction history |
-| **Employee** | Created by an admin | Review registration requests (approve / reject), open customer accounts, record cash deposits |
-| **Admin** | Created with `createsuperuser` | Create / block employees, block / unblock customers, view bank-wide statistics and all transactions |
+| Role         | How the account is created                                          | What they can do                                                                                    |
+| ------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Customer** | Registers on the website. A bank employee must approve the request. | View balance, transfer money, manage beneficiaries, search and filter transaction history           |
+| **Employee** | Created by an admin                                                 | Review registration requests (approve / reject), open customer accounts, record cash deposits       |
+| **Admin**    | Created with `createsuperuser`                                      | Create / block employees, block / unblock customers, view bank-wide statistics and all transactions |
 
 **Registration flow**
 
@@ -179,10 +190,10 @@ Run the frontend tests with `npm test` (Vitest and Testing Library).
 
 ### Demo logins (after `seed_demo`)
 
-| Role | Username | Password |
-|------|----------|----------|
-| Admin | `bankadmin` | `Admin@12345` |
-| Employee | `employee1` | `Employee@12345` |
+| Role     | Username                  | Password         |
+| -------- | ------------------------- | ---------------- |
+| Admin    | `bankadmin`               | `Admin@12345`    |
+| Employee | `employee1`               | `Employee@12345` |
 | Customer | `customer1` / `customer2` | `Customer@12345` |
 
 Never run `seed_demo` on a public site: these passwords are public.
@@ -216,30 +227,30 @@ one-live-login rule. GitHub Actions runs the same tests on PostgreSQL, checks mi
 
 All endpoints are under `/api/`. Authenticated calls send `Authorization: Bearer <access token>`.
 
-**Interactive docs:** `/api/docs/` (Swagger UI, press *Authorize* and paste the access token) and `/api/redoc/`.
+**Interactive docs:** `/api/docs/` (Swagger UI, press _Authorize_ and paste the access token) and `/api/redoc/`.
 The raw OpenAPI file is at `/api/schema/`.
 
-| Method | Endpoint | Who |
-|--------|----------|-----|
-| POST | `auth/register/` | public |
-| POST | `auth/login/` | public |
-| POST | `auth/refresh/` | public |
-| GET | `auth/me/` | any logged-in user |
-| GET | `customer/account/` | customer |
-| GET | `customer/transactions/?q=&type=credit\|debit&date_from=&date_to=&page=` | customer |
-| POST | `customer/transfer/` | customer |
-| GET, POST | `customer/beneficiaries/` | customer |
-| DELETE | `customer/beneficiaries/<id>/` | customer |
-| GET | `employee/requests/?status=&q=` | employee |
-| POST | `employee/requests/<id>/approve/` | employee |
-| POST | `employee/requests/<id>/reject/` | employee |
-| GET | `employee/accounts/?q=` | employee |
-| POST | `employee/deposit/` | employee |
-| GET | `admin-panel/stats/` | admin |
-| GET, POST | `admin-panel/employees/` | admin |
-| GET | `admin-panel/customers/?q=` | admin |
-| POST | `admin-panel/users/<id>/toggle-active/` | admin |
-| GET | `admin-panel/transactions/?q=` | admin |
+| Method    | Endpoint                                                                 | Who                |
+| --------- | ------------------------------------------------------------------------ | ------------------ |
+| POST      | `auth/register/`                                                         | public             |
+| POST      | `auth/login/`                                                            | public             |
+| POST      | `auth/refresh/`                                                          | public             |
+| GET       | `auth/me/`                                                               | any logged-in user |
+| GET       | `customer/account/`                                                      | customer           |
+| GET       | `customer/transactions/?q=&type=credit\|debit&date_from=&date_to=&page=` | customer           |
+| POST      | `customer/transfer/`                                                     | customer           |
+| GET, POST | `customer/beneficiaries/`                                                | customer           |
+| DELETE    | `customer/beneficiaries/<id>/`                                           | customer           |
+| GET       | `employee/requests/?status=&q=`                                          | employee           |
+| POST      | `employee/requests/<id>/approve/`                                        | employee           |
+| POST      | `employee/requests/<id>/reject/`                                         | employee           |
+| GET       | `employee/accounts/?q=`                                                  | employee           |
+| POST      | `employee/deposit/`                                                      | employee           |
+| GET       | `admin-panel/stats/`                                                     | admin              |
+| GET, POST | `admin-panel/employees/`                                                 | admin              |
+| GET       | `admin-panel/customers/?q=`                                              | admin              |
+| POST      | `admin-panel/users/<id>/toggle-active/`                                  | admin              |
+| GET       | `admin-panel/transactions/?q=`                                           | admin              |
 
 ---
 
@@ -280,4 +291,7 @@ GitHub Actions CI running the tests, a multi-threaded test for concurrent transf
 
 ## Author
 
-Built by *Your Name* as a full-stack Python portfolio project. (Add your name, GitHub and LinkedIn here.)
+Built by **Anup Prasad** as a full-stack Python portfolio project.
+
+- GitHub: https://github.com/anupprasad-dev
+- LinkedIn: https://www.linkedin.com/in/anupprasad-dev
